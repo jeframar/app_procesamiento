@@ -1,0 +1,88 @@
+from pathlib import Path
+
+from app_procesamiento.core.certificados import agregar_certificado_por_total
+from app_procesamiento.core.columnas import (
+    convertir_columnas_calificacion,
+    eliminar_columnas_actividad,
+    mover_columna_despues_de_otra,
+    ordenar_bloque_calificaciones,
+    ordenar_por_calificaciones,
+)
+from app_procesamiento.core.dialogos import (
+    seleccionar_archivo,
+    seleccionar_archivo_opcional,
+    seleccionar_carpeta,
+)
+from app_procesamiento.core.lectores import (
+    leer_actividades,
+    leer_calificados,
+    leer_examen,
+    leer_examen_final,
+)
+from app_procesamiento.core.transformaciones import (
+    eliminar_columnas_basura,
+    eliminar_columnas_exportacion,
+    limpiar_campos_generales,
+    unir_fuentes,
+)
+
+
+def procesar() -> Path:
+    print("\nSeleccione los archivos necesarios\n")
+
+    ruta_actividades = seleccionar_archivo(
+        "Seleccione el archivo de actividades",
+        [("CSV", "*.csv")],
+    )
+    ruta_calificacion = seleccionar_archivo(
+        "Seleccione dataset_final.xlsx",
+        [("Excel", "*.xlsx")],
+    )
+    ruta_examen_entrada = seleccionar_archivo_opcional(
+        "Seleccione el examen de entrada (opcional)",
+        [("Excel", "*.xlsx")],
+    )
+    ruta_examen_final = seleccionar_archivo(
+        "Seleccione el examen final",
+        [("Excel", "*.xlsx")],
+    )
+    carpeta_salida = seleccionar_carpeta("Seleccione la carpeta donde guardar el resultado")
+    ruta_salida = Path(carpeta_salida) / "mooc_procesado.xlsx"
+
+    print("\nLeyendo archivos...\n")
+    actividades = leer_actividades(ruta_actividades)
+    calificados = leer_calificados(ruta_calificacion)
+    examen_entrada = leer_examen(ruta_examen_entrada) if ruta_examen_entrada else None
+    examen_final = leer_examen_final(ruta_examen_final)
+
+    print("Procesando datos...\n")
+    df = unir_fuentes(calificados, actividades)
+
+    if examen_entrada is not None:
+        df = df.merge(examen_entrada, on="DNI", how="outer")
+
+    df = df.merge(examen_final, on="DNI", how="outer", suffixes=("", "_final"))
+
+    df = eliminar_columnas_actividad(df, "mooc")
+    df = eliminar_columnas_basura(df)
+    df = limpiar_campos_generales(df)
+    df = convertir_columnas_calificacion(df)
+    df = mover_columna_despues_de_otra(df, "clasificacion_empresa", "perfil")
+    df = mover_columna_despues_de_otra(df, "total_curso", "Calificación/20,00_final")
+    df = ordenar_bloque_calificaciones(df)
+    df = ordenar_por_calificaciones(df)
+    df = agregar_certificado_por_total(df, crear_si_no_hay_total=True)
+    df = eliminar_columnas_exportacion(df)
+
+    print("Guardando archivo...\n")
+    df.to_excel(ruta_salida, index=False)
+
+    print("Archivo generado correctamente:")
+    print(ruta_salida)
+    print("Total registros:", len(df))
+    return ruta_salida
+
+
+if __name__ == "__main__":
+    procesar()
+

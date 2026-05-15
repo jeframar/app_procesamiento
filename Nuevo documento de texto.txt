@@ -1,0 +1,38 @@
+Evaluación específica: Streamlit Community CloudRAM: sí. Los archivos subidos se leen con pd.read_csv / pd.read_excel desde el objeto subido y los DataFrames viven en memoria durante la ejecución.
+session_state: no hay uso explícito de st.session_state. Sin embargo, st.file_uploader usa estado de widget con claves, por lo que los archivos pueden permanecer disponibles durante la sesión.
+cache de Streamlit: sí, pero para Google Sheets: servicio en st.cache_resource y bd/etiquetas en st.cache_data(ttl=600). No vi caché de datasets subidos/procesados.
+filesystem efímero: en app.py no hay escritura explícita a disco, tempfile, /tmp, carpetas uploads/, outputs/, temp/, data/ ni cache/.
+logs: hay print en módulos llamados por la app que pueden ir a logs de plataforma. Principalmente imprimen conteos, nombres de hojas y errores, no filas completas.
+servicios externos: Google Sheets se usa para leer base/etiquetas. Si Registrar pendientes está activo, se escriben RUC/nombres de entidad derivados del dataset.
+Evaluación específica: RailwayRAM: igual que Streamlit Cloud: uploads, DataFrames y bytes de descarga existen temporalmente en el proceso.
+filesystem del contenedor: app.py no escribe datasets. Pero los scripts CLI incluidos sí escriben .xlsx si se ejecutan.
+volumen persistente, si existe: no hay railway.json, Dockerfile ni configuración de volumen en el código disponible. Si Railway monta un volumen y algún flujo CLI escribe allí, podría persistir.
+logs de Railway: Railway capturaría print(...) y errores no capturados. El código no imprime DataFrames completos, pero sí rutas en CLI, conteos, nombres de hojas y errores.
+base de datos o storage externo: no se ve uso de Postgres/MySQL/SQLite/Redis/S3/GCS/Azure. El storage externo real es Google Sheets.
+servicios externos: Google Sheets con service account desde st.secrets; escritura externa condicional por Registrar pendientes.
+Evidencias relevantesLectura de uploads: app.py (line 69), 77 (line 77), 91 (line 91).
+Generación de Excel en memoria: app.py (line 60).
+Descarga sin archivo intermedio explícito: app.py (line 273).
+Google Sheets desde secrets: app.py (line 111), 114 (line 114), 118 (line 118).
+Escritura externa condicional: app.py (line 158), entidades.py (line 253), google_sheets.py (line 162).
+Escrituras a disco fuera del flujo Streamlit: preparar_calificaciones.py (line 84), procesar_microlearning.py (line 80), procesar_mooc.py (line 78), procesar_videoconferencia.py (line 50).
+Configuración de subida: .streamlit/config.toml (line 9).
+Exclusiones Git para secretos/datasets: .gitignore (line 3).
+No verificable con el código disponibleSi Streamlit Community Cloud guarda internamente uploads/cache en disco temporal.
+Tiempo real de retención de memoria por sesión y widgets.
+Retención de logs en Streamlit Community Cloud y Railway.
+Variables de entorno/secrets reales desplegados.
+Comando real de arranque en Railway.
+Existencia de volúmenes persistentes en Railway.
+Permisos, historial, retención y compartición del Google Sheet.
+Si hubo ejecuciones previas de scripts CLI que hayan dejado .xlsx, .csv, token.json o logs.
+Políticas de backup/observabilidad externas de Railway, Streamlit o Google.
+RecomendacionesMantener el flujo Streamlit procesando en memoria con BytesIO.
+Evitar escritura a disco para uploads, intermedios y outputs.
+Si se usan temporales, borrarlos explícitamente al terminar.
+Evitar logs con filas, columnas sensibles, nombres de archivo o contenido del dataset.
+Evitar st.cache_data para datasets subidos o resultados procesados.
+Limpiar estado de sesión cuando aplique, especialmente archivos subidos y bytes de descarga.
+Revisar si Railway tiene volúmenes montados y qué ruta usan.
+Revisar retención de logs en Streamlit Community Cloud, Railway y Google Cloud.
+Limitar o desactivar Registrar pendientes cuando los RUC/nombres de entidad sean sensibles.
