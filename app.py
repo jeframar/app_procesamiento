@@ -279,35 +279,334 @@ def descargar_excel(df: pd.DataFrame, filename: str, label: str) -> None:
     )
 
 
-st.title("Procesamiento OECE")
-
-with st.sidebar:
-    st.header("Google Sheets")
-    spreadsheet_url = st.text_input("URL bd_entidades", value=config.BD_ENTIDADES_URL)
-    hoja_bd = st.text_input("Hoja principal", value=config.BD_ENTIDADES_SHEET)
-    hoja_aniadir = st.text_input("Hoja adicional", value=config.BD_ANIADIR_SHEET)
-    hoja_etiquetas = st.text_input("Hoja etiquetas", value=config.BD_ETIQUETAS_SHEET)
-    registrar_pendientes = st.checkbox("Registrar pendientes", value=False)
-
-cfg = {
-    "spreadsheet_url": spreadsheet_url,
-    "hoja_bd": hoja_bd,
-    "hoja_aniadir": hoja_aniadir,
-    "hoja_etiquetas": hoja_etiquetas,
+def inject_css() -> None:
+    st.markdown(
+        """
+<style>
+:root {
+    --oece-blue: #0D406B;
+    --oece-blue-dark: #083455;
+    --oece-yellow: #F5A802;
+    --oece-gray: #575556;
+    --oece-bg: #F3F7FB;
+    --oece-card: #FFFFFF;
+    --oece-border: #D9E4EF;
+    --oece-upload-bg: #EAF2F8;
+    --oece-text: #1F2933;
+    --oece-success: #0F766E;
+    --oece-error: #B42318;
 }
+
+.stApp { background-color: var(--oece-bg); }
+
+.block-container {
+    padding-top: 2rem;
+    padding-bottom: 3rem;
+    max-width: 1180px;
+}
+
+.block-container::before {
+    content: "";
+    display: block;
+    height: 6px;
+    width: 100%;
+    background: linear-gradient(90deg, var(--oece-blue) 0%, var(--oece-blue) 72%, var(--oece-yellow) 72%, var(--oece-yellow) 100%);
+    border-radius: 999px;
+    margin-bottom: 1.75rem;
+}
+
+section[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #FFFFFF 0%, #F3F7FB 100%);
+    border-right: 1px solid var(--oece-border);
+}
+
+section[data-testid="stSidebar"] h1,
+section[data-testid="stSidebar"] h2,
+section[data-testid="stSidebar"] h3 { color: var(--oece-blue); }
+
+section[data-testid="stSidebar"] h2 {
+    font-size: 1.15rem;
+    margin-top: 0.25rem;
+    margin-bottom: 0.75rem;
+    border-bottom: 2px solid var(--oece-yellow);
+    display: inline-block;
+    padding-bottom: 0.15rem;
+}
+
+section[data-testid="stSidebar"] h3 {
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-top: 1.2rem;
+    margin-bottom: 0.4rem;
+    color: var(--oece-gray);
+    font-weight: 700;
+}
+
+h1 { color: var(--oece-blue); font-weight: 800; letter-spacing: -0.6px; margin-bottom: 0.15rem; }
+h2, h3 { color: var(--oece-blue); font-weight: 700; }
+p, label, span { color: var(--oece-text); }
+
+.oece-header { padding: 0.1rem 0 0.4rem 0; }
+.oece-header h1 { margin-bottom: 0.2rem; }
+.oece-subtitle {
+    color: var(--oece-gray);
+    font-size: 1rem;
+    margin: 0;
+    font-weight: 500;
+}
+
+.stTextInput input {
+    border-radius: 10px;
+    border: 1px solid var(--oece-border);
+    background-color: #FFFFFF;
+}
+.stTextInput input:focus {
+    border-color: var(--oece-blue);
+    box-shadow: 0 0 0 1px var(--oece-blue);
+}
+
+.stButton > button {
+    background-color: var(--oece-blue);
+    color: #FFFFFF;
+    border: 1px solid var(--oece-blue);
+    border-radius: 10px;
+    font-weight: 700;
+    padding: 0.65rem 1.2rem;
+    transition: all 0.15s ease-in-out;
+}
+.stButton > button:hover:not(:disabled) {
+    background-color: var(--oece-blue-dark);
+    border-color: var(--oece-blue-dark);
+    color: #FFFFFF;
+}
+.stButton > button:disabled {
+    background-color: #E5EAF0;
+    color: #8A94A3;
+    border: 1px solid #D0D7E2;
+    cursor: not-allowed;
+}
+
+.stDownloadButton > button {
+    background-color: var(--oece-yellow);
+    color: var(--oece-blue);
+    border: 1px solid var(--oece-yellow);
+    border-radius: 10px;
+    font-weight: 700;
+}
+.stDownloadButton > button:hover {
+    background-color: #E69A02;
+    border-color: #E69A02;
+    color: var(--oece-blue);
+}
+
+section[data-testid="stFileUploader"] {
+    background-color: var(--oece-upload-bg);
+    border: 1.5px dashed #9BB7CE;
+    border-radius: 14px;
+    padding: 1rem;
+}
+section[data-testid="stFileUploader"]:hover {
+    border-color: var(--oece-blue);
+    background-color: #E3EEF7;
+}
+section[data-testid="stFileUploader"] label { color: var(--oece-blue); font-weight: 600; }
+
+div[data-baseweb="tab-list"] {
+    gap: 0.5rem;
+    border-bottom: 1px solid var(--oece-border);
+}
+button[data-baseweb="tab"] {
+    font-weight: 700;
+    color: var(--oece-gray);
+    background-color: transparent;
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+}
+button[data-baseweb="tab"][aria-selected="true"] {
+    color: var(--oece-blue);
+    border-bottom: 3px solid var(--oece-yellow);
+}
+div[data-baseweb="tab-highlight"] { background-color: transparent !important; }
+
+div[role="radiogroup"] label {
+    background-color: #FFFFFF;
+    border: 1px solid var(--oece-border);
+    border-radius: 999px;
+    padding: 0.35rem 0.9rem;
+    margin-right: 0.35rem;
+    color: var(--oece-text);
+}
+div[role="radiogroup"] label[data-checked="true"] {
+    background-color: var(--oece-blue);
+    border-color: var(--oece-blue);
+    color: #FFFFFF;
+}
+
+div[data-testid="stHorizontalBlock"] { gap: 1.25rem; }
+
+.oece-card {
+    background-color: var(--oece-card);
+    border: 1px solid var(--oece-border);
+    border-radius: 18px;
+    padding: 1.4rem 1.5rem;
+    box-shadow: 0 8px 24px rgba(13, 64, 107, 0.06);
+    margin-bottom: 1.25rem;
+}
+
+.oece-section-title {
+    color: var(--oece-blue);
+    font-size: 1.2rem;
+    font-weight: 800;
+    margin: 0 0 0.25rem 0;
+}
+.oece-section-description {
+    color: var(--oece-gray);
+    font-size: 0.95rem;
+    margin: 0;
+}
+
+.oece-divider {
+    height: 1px;
+    background: var(--oece-border);
+    margin: 1rem 0 1.25rem 0;
+    border: 0;
+}
+
+div[data-testid="stAlert"] { border-radius: 12px; }
+
+div[data-testid="stMetric"] {
+    background-color: #FFFFFF;
+    border: 1px solid var(--oece-border);
+    border-radius: 14px;
+    padding: 0.85rem 1rem;
+    box-shadow: 0 4px 12px rgba(13, 64, 107, 0.04);
+}
+div[data-testid="stMetricLabel"] { color: var(--oece-gray); font-weight: 600; }
+div[data-testid="stMetricValue"] { color: var(--oece-blue); font-weight: 800; }
+</style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _find_logo() -> Path | None:
+    for ext in ("png", "jpg", "jpeg"):
+        candidate = ROOT / f"logo_oece.{ext}"
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def render_header() -> None:
+    logo = _find_logo()
+    subtitulo = "Sistema de depuración, consolidación y procesamiento de actividades"
+
+    if logo is not None:
+        col_logo, col_text = st.columns([1, 6])
+        with col_logo:
+            st.image(str(logo), width=110)
+        with col_text:
+            st.markdown(
+                f'<div class="oece-header">'
+                f'<h1>Procesamiento OECE</h1>'
+                f'<p class="oece-subtitle">{subtitulo}</p>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+    else:
+        st.markdown(
+            f'<div class="oece-header">'
+            f'<h1>Procesamiento OECE</h1>'
+            f'<p class="oece-subtitle">{subtitulo}</p>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+
+def render_card_open(title: str, description: str) -> None:
+    st.markdown(
+        f'<div class="oece-card">'
+        f'<p class="oece-section-title">{title}</p>'
+        f'<p class="oece-section-description">{description}</p>'
+        f'<hr class="oece-divider" />'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def render_card_close() -> None:
+    st.markdown('<div style="margin-bottom: 1.25rem;"></div>', unsafe_allow_html=True)
+
+
+def render_sidebar() -> dict:
+    with st.sidebar:
+        st.markdown("## Configuración")
+
+        st.markdown("### Google Sheets")
+        spreadsheet_url = st.text_input("URL bd_entidades", value=config.BD_ENTIDADES_URL)
+
+        st.markdown("### Hojas de trabajo")
+        hoja_bd = st.text_input("Hoja principal", value=config.BD_ENTIDADES_SHEET)
+        hoja_aniadir = st.text_input("Hoja adicional", value=config.BD_ANIADIR_SHEET)
+        hoja_etiquetas = st.text_input("Hoja etiquetas", value=config.BD_ETIQUETAS_SHEET)
+
+        st.markdown("### Opciones")
+        registrar_pendientes = st.checkbox("Registrar pendientes", value=False)
+
+    return {
+        "cfg": {
+            "spreadsheet_url": spreadsheet_url,
+            "hoja_bd": hoja_bd,
+            "hoja_aniadir": hoja_aniadir,
+            "hoja_etiquetas": hoja_etiquetas,
+        },
+        "registrar_pendientes": registrar_pendientes,
+    }
+
+
+def render_action_button_right(label: str, *, key: str, disabled: bool) -> bool:
+    _, col_btn = st.columns([3, 2])
+    with col_btn:
+        return st.button(
+            label,
+            type="primary",
+            disabled=disabled,
+            use_container_width=True,
+            key=key,
+        )
+
+
+inject_css()
+render_header()
+
+sidebar_state = render_sidebar()
+cfg = sidebar_state["cfg"]
+registrar_pendientes = sidebar_state["registrar_pendientes"]
 
 tab_limpiar, tab_finalizar, tab_procesar = st.tabs(
     ["Limpiar calificaciones", "Finalizar dataset", "Procesar actividad"]
 )
 
 with tab_limpiar:
+    render_card_open(
+        "Limpiar calificaciones",
+        "Carga el archivo original de calificaciones en formato XLSX para generar una versión depurada.",
+    )
+
     archivo_calificaciones = st.file_uploader(
         "Calificaciones original",
         type=["xlsx"],
         key="calificaciones_original",
     )
 
-    if st.button("Limpiar", type="primary", disabled=archivo_calificaciones is None, use_container_width=True):
+    clic_limpiar = render_action_button_right(
+        "Limpiar calificaciones",
+        key="btn_limpiar",
+        disabled=archivo_calificaciones is None,
+    )
+
+    if clic_limpiar:
         try:
             with st.spinner("Procesando..."):
                 df_limpio, metricas = limpiar_calificaciones(
@@ -315,44 +614,74 @@ with tab_limpiar:
                     registrar_pendientes,
                     cfg,
                 )
+            st.success("Calificaciones limpiadas correctamente.")
             mostrar_metricas(metricas)
             descargar_excel(df_limpio, "dataset_limpiado.xlsx", "Descargar dataset_limpiado.xlsx")
         except Exception as error:
             st.error(str(error))
-            with st.expander("Detalle tecnico"):
+            with st.expander("Detalle técnico"):
                 st.exception(error)
 
+    render_card_close()
+
 with tab_finalizar:
+    render_card_open(
+        "Finalizar dataset",
+        "Carga el archivo depurado para consolidarlo con la información configurada en Google Sheets.",
+    )
+
     archivo_limpiado = st.file_uploader(
-        "dataset_limpiado.xlsx depurado",
+        "Dataset depurado",
         type=["xlsx"],
         key="dataset_limpiado",
     )
 
-    if st.button("Finalizar", type="primary", disabled=archivo_limpiado is None, use_container_width=True):
+    clic_finalizar = render_action_button_right(
+        "Finalizar dataset",
+        key="btn_finalizar",
+        disabled=archivo_limpiado is None,
+    )
+
+    if clic_finalizar:
         try:
             with st.spinner("Procesando..."):
                 df_final, metricas = finalizar_calificaciones(archivo_limpiado, cfg)
+            st.success("Dataset consolidado correctamente.")
             mostrar_metricas(metricas)
             descargar_excel(df_final, "dataset_final.xlsx", "Descargar dataset_final.xlsx")
         except Exception as error:
             st.error(str(error))
-            with st.expander("Detalle tecnico"):
+            with st.expander("Detalle técnico"):
                 st.exception(error)
 
+    render_card_close()
+
 with tab_procesar:
+    render_card_open(
+        "Procesar actividad",
+        "Selecciona el tipo de actividad y carga los archivos requeridos para procesar la información.",
+    )
+
     tipo_actividad = st.radio(
-        "Tipo",
+        "Tipo de actividad",
         ["Videoconferencia", "Microlearning", "MOOC"],
         horizontal=True,
-        default="Videoconferencia",
+        index=0,
     )
 
     col1, col2 = st.columns(2)
     with col1:
-        actividades = st.file_uploader("Actividades CSV", type=["csv"], key=f"act_{tipo_actividad}")
+        actividades = st.file_uploader(
+            "Actividades CSV",
+            type=["csv"],
+            key=f"act_{tipo_actividad}",
+        )
     with col2:
-        dataset_final = st.file_uploader("dataset_final.xlsx", type=["xlsx"], key=f"final_{tipo_actividad}")
+        dataset_final = st.file_uploader(
+            "Dataset final XLSX",
+            type=["xlsx"],
+            key=f"final_{tipo_actividad}",
+        )
 
     examen_entrada = None
     examen_final = None
@@ -361,23 +690,42 @@ with tab_procesar:
         col3, col4 = st.columns(2)
         with col3:
             examen_entrada = st.file_uploader(
-                "Examen de entrada",
+                "Examen de entrada (XLSX)",
                 type=["xlsx"],
                 key=f"entrada_{tipo_actividad}",
             )
         with col4:
             examen_final = st.file_uploader(
-                "Examen final",
+                "Examen final (XLSX)",
                 type=["xlsx"],
                 key=f"final_exam_{tipo_actividad}",
             )
 
     requiere_examen_final = tipo_actividad == "MOOC"
-    listo = actividades is not None and dataset_final is not None and (
-        not requiere_examen_final or examen_final is not None
+    listo = (
+        actividades is not None
+        and dataset_final is not None
+        and (not requiere_examen_final or examen_final is not None)
     )
 
-    if st.button("Procesar actividad", type="primary", disabled=not listo, use_container_width=True):
+    if not listo:
+        faltantes = []
+        if actividades is None:
+            faltantes.append("Actividades CSV")
+        if dataset_final is None:
+            faltantes.append("Dataset final XLSX")
+        if requiere_examen_final and examen_final is None:
+            faltantes.append("Examen final (requerido para MOOC)")
+        if faltantes:
+            st.info("Faltan archivos: " + ", ".join(faltantes) + ".")
+
+    clic_procesar = render_action_button_right(
+        "Procesar actividad",
+        key="btn_procesar",
+        disabled=not listo,
+    )
+
+    if clic_procesar:
         try:
             with st.spinner("Procesando..."):
                 if tipo_actividad == "Videoconferencia":
@@ -400,9 +748,12 @@ with tab_procesar:
                     )
                     nombre_archivo = "mooc_procesado.xlsx"
 
+            st.success(f"{tipo_actividad} procesado correctamente.")
             mostrar_metricas({"Registros procesados": len(df_resultado)})
             descargar_excel(df_resultado, nombre_archivo, f"Descargar {nombre_archivo}")
         except Exception as error:
             st.error(str(error))
-            with st.expander("Detalle tecnico"):
+            with st.expander("Detalle técnico"):
                 st.exception(error)
+
+    render_card_close()
