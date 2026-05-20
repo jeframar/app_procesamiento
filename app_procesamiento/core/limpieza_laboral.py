@@ -271,7 +271,10 @@ def aplicar_correcciones_post_match(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def normalizar_columnas_por_situacion_laboral(df: pd.DataFrame) -> pd.DataFrame:
-    df = asegurar_columnas(df, ["situacion_laboral", "tipo_entidad"])
+    df = asegurar_columnas(
+        df,
+        ["situacion_laboral", "tipo_entidad", "ruc", "nombre_entidad", "nivel_gobierno"],
+    )
     nc = "No corresponde"
 
     mask_dep_pub = (sit(df) == "Trabajador dependiente") & (tipo(df) == "Entidad pública")
@@ -286,6 +289,14 @@ def normalizar_columnas_por_situacion_laboral(df: pd.DataFrame) -> pd.DataFrame:
         "otros_ambito",
     ]:
         asignar_texto(df, mask_dep_pub, col, nc)
+
+    mask_dep_pub_indep = (
+        mask_dep_pub
+        & (df["ruc"].astype(str).str.strip() == "0")
+        & (df["nombre_entidad"].astype(str).str.strip() == "INDEPENDIENTE Y OTROS")
+        & es_vacio(df["nivel_gobierno"])
+    )
+    asignar_texto(df, mask_dep_pub_indep, "nivel_gobierno", "-")
 
     mask_dep_pri = (sit(df) == "Trabajador dependiente") & (tipo(df) == "Entidad privada")
     asignar_texto(df, mask_dep_pri, "nivel_gobierno", "-")

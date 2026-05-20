@@ -99,9 +99,9 @@ def ordenar_bloque_calificaciones(df: pd.DataFrame) -> pd.DataFrame:
         return df
 
     cols_originales = list(df.columns)
-    primera_posicion = min(cols_originales.index(c) for c in bloque)
+    ultima_posicion = max(cols_originales.index(c) for c in bloque)
     cols_restantes = [c for c in cols_originales if c not in bloque]
-    posicion_ajustada = sum(1 for c in cols_originales[:primera_posicion] if c not in bloque)
+    posicion_ajustada = sum(1 for c in cols_originales[:ultima_posicion + 1] if c not in bloque)
 
     return df[cols_restantes[:posicion_ajustada] + bloque + cols_restantes[posicion_ajustada:]]
 

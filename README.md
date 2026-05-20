@@ -70,6 +70,10 @@ streamlit run app.py
 Para pruebas locales, crea `.streamlit/secrets.toml` copiando
 `.streamlit/secrets.example.toml` y reemplazando los valores.
 
+Tambien puedes usar el flujo OAuth local de los scripts: coloca
+`credentials.json` en la raiz del proyecto. La app creara `token.json` durante
+la primera autenticacion. Ambos archivos estan ignorados por Git.
+
 ## Flujo de uso
 
 1. `Limpiar calificaciones`: sube el archivo original de calificaciones y

@@ -8,6 +8,7 @@ import pandas as pd
 import streamlit as st
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
+from streamlit.errors import StreamlitSecretNotFoundError
 
 
 ROOT = Path(__file__).resolve().parent
@@ -35,7 +36,11 @@ from app_procesamiento.core.entidades import (
     registrar_pendientes_en_sheets,
     validar_ruc_para_match,
 )
-from app_procesamiento.core.google_sheets import SCOPES, extract_spreadsheet_id
+from app_procesamiento.core.google_sheets import (
+    SCOPES,
+    build_sheets_service,
+    extract_spreadsheet_id,
+)
 from app_procesamiento.core.lectores import leer_calificados, leer_examen, leer_examen_final
 from app_procesamiento.core.limpieza_laboral import (
     aplicar_correcciones_post_match,
@@ -106,17 +111,42 @@ def leer_examen_final_upload(uploaded_file) -> pd.DataFrame:
     return leer_examen_final(uploaded_file)
 
 
+def streamlit_service_account_info() -> dict | None:
+    try:
+        if "gcp_service_account" not in st.secrets:
+            return None
+        return dict(st.secrets["gcp_service_account"])
+    except StreamlitSecretNotFoundError:
+        return None
+
+
 @st.cache_resource(show_spinner=False)
 def sheets_service_from_secrets():
-    if "gcp_service_account" not in st.secrets:
-        raise RuntimeError("Falta configurar [gcp_service_account] en los secrets de Streamlit.")
+    info = streamlit_service_account_info()
+    if info is not None:
+        if "private_key" in info:
+            info["private_key"] = info["private_key"].replace("\\n", "\n")
 
-    info = dict(st.secrets["gcp_service_account"])
-    if "private_key" in info:
-        info["private_key"] = info["private_key"].replace("\\n", "\n")
+        creds = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
+        return build("sheets", "v4", credentials=creds, cache_discovery=False)
 
-    creds = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
-    return build("sheets", "v4", credentials=creds, cache_discovery=False)
+    credentials_path = config.CREDENTIALS_PATH
+    token_path = config.TOKEN_PATH
+    if not credentials_path.is_absolute():
+        credentials_path = ROOT / credentials_path
+    if not token_path.is_absolute():
+        token_path = ROOT / token_path
+
+    if credentials_path.exists():
+        return build_sheets_service(credentials_path, token_path)
+
+    raise RuntimeError(
+        "No hay credenciales de Google Sheets configuradas. "
+        "Para ejecucion local, crea .streamlit/secrets.toml a partir de "
+        ".streamlit/secrets.example.toml o coloca credentials.json en la raiz "
+        "del proyecto. En Streamlit Cloud, configura [gcp_service_account] en "
+        "App settings > Secrets."
+    )
 
 
 @st.cache_data(ttl=600, show_spinner=False)
