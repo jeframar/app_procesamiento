@@ -61,18 +61,35 @@ universe_domain = "googleapis.com"
 
 ## Ejecucion local
 
-Instala dependencias en el entorno que prefieras y ejecuta:
+### 1. Instalar dependencias
 
 ```powershell
-streamlit run app.py
+uv sync
 ```
 
-Para pruebas locales, crea `.streamlit/secrets.toml` copiando
-`.streamlit/secrets.example.toml` y reemplazando los valores.
+### 2. Iniciar la app
 
-Tambien puedes usar el flujo OAuth local de los scripts: coloca
-`credentials.json` en la raiz del proyecto. La app creara `token.json` durante
-la primera autenticacion. Ambos archivos estan ignorados por Git.
+```powershell
+uv run streamlit run app.py
+```
+
+Usar siempre `uv run` para que el comando se ejecute dentro del entorno virtual
+`.venv/` creado por uv. Ejecutar `streamlit run app.py` directamente usa el
+Python del sistema y produce `ModuleNotFoundError` aunque `uv sync` haya
+terminado sin errores.
+
+### 3. Credenciales para ejecucion local
+
+La app usa el flujo OAuth de escritorio: coloca `credentials.json` en la raiz
+del proyecto. Se obtiene descargando la clave del cliente OAuth desde
+Google Cloud Console (proyecto `drive1-491915`, tipo "Aplicacion de escritorio").
+
+La primera vez que se conecte a Google Sheets se abrira el navegador para
+autorizar el acceso. Tras eso se crea `token.json` automaticamente y no vuelve
+a pedirse autorizacion.
+
+Ambos archivos estan en `.gitignore` y nunca se suben al repositorio. Al clonar
+en un dispositivo nuevo hay que copiarlos manualmente.
 
 ## Flujo de uso
 
