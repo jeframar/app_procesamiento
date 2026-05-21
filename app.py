@@ -57,7 +57,7 @@ from app_procesamiento.core.utils import normalizar_dni
 
 
 st.set_page_config(
-    page_title="Procesamiento OECE",
+    page_title="Procesamiento de datos",
     layout="wide",
 )
 
@@ -547,7 +547,7 @@ def render_header() -> None:
     else:
         st.markdown(
             f'<div class="oece-header">'
-            f'<h1>Procesamiento OECE</h1>'
+            f'<h1>Procesamiento de datos</h1>'
             f'<p class="oece-subtitle">{subtitulo}</p>'
             f'</div>',
             unsafe_allow_html=True,
