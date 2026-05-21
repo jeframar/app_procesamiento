@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from contextlib import redirect_stdout
 from io import BytesIO
+from io import StringIO
 from pathlib import Path
 import sys
 
@@ -28,6 +30,7 @@ from app_procesamiento.core.columnas import (
     ordenar_columnas_intermedias,
     ordenar_por_calificaciones,
 )
+from app_procesamiento.core.diagnosticos import imprimir_diagnostico_duplicados_dni
 from app_procesamiento.core.entidades import (
     aplicar_match_por_nombre,
     aplicar_match_por_ruc,
@@ -222,6 +225,13 @@ def finalizar_calificaciones(uploaded_file, cfg: dict):
 
 
 def procesar_microlearning(actividades_file, dataset_file, examen_entrada_file, examen_final_file):
+    imprimir_diagnostico_duplicados_dni(
+        actividades_file,
+        dataset_file,
+        examen_entrada_file,
+        examen_final_file,
+    )
+
     actividades = leer_actividades_upload(actividades_file)
     calificados = leer_calificados_upload(dataset_file)
     df = unir_fuentes(calificados, actividades)
@@ -250,6 +260,13 @@ def procesar_microlearning(actividades_file, dataset_file, examen_entrada_file, 
 
 
 def procesar_mooc(actividades_file, dataset_file, examen_entrada_file, examen_final_file):
+    imprimir_diagnostico_duplicados_dni(
+        actividades_file,
+        dataset_file,
+        examen_entrada_file,
+        examen_final_file,
+    )
+
     actividades = leer_actividades_upload(actividades_file)
     calificados = leer_calificados_upload(dataset_file)
     df = unir_fuentes(calificados, actividades)
@@ -277,6 +294,11 @@ def procesar_mooc(actividades_file, dataset_file, examen_entrada_file, examen_fi
 
 
 def procesar_videoconferencia(actividades_file, dataset_file):
+    imprimir_diagnostico_duplicados_dni(
+        actividades_file,
+        dataset_file,
+    )
+
     actividades = leer_actividades_upload(actividades_file)
     calificados = leer_calificados_upload(dataset_file)
 
@@ -307,6 +329,20 @@ def descargar_excel(df: pd.DataFrame, filename: str, label: str) -> None:
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True,
     )
+
+
+def mostrar_mensajes_procesamiento(mensajes: str) -> None:
+    lineas = [linea.rstrip() for linea in mensajes.splitlines() if linea.strip()]
+    if not lineas:
+        return
+
+    incidentes = [linea for linea in lineas if linea.startswith("INCIDENTE:")]
+
+    for incidente in incidentes:
+        st.warning(incidente)
+
+    with st.expander("Mensajes del procesamiento", expanded=bool(incidentes)):
+        st.text("\n".join(lineas))
 
 
 def inject_css() -> None:
@@ -756,32 +792,36 @@ with tab_procesar:
     )
 
     if clic_procesar:
+        mensajes_buffer = StringIO()
         try:
             with st.spinner("Procesando..."):
-                if tipo_actividad == "Videoconferencia":
-                    df_resultado = procesar_videoconferencia(actividades, dataset_final)
-                    nombre_archivo = "videoconferencia_procesado.xlsx"
-                elif tipo_actividad == "Microlearning":
-                    df_resultado = procesar_microlearning(
-                        actividades,
-                        dataset_final,
-                        examen_entrada,
-                        examen_final,
-                    )
-                    nombre_archivo = "microlearning_procesado.xlsx"
-                else:
-                    df_resultado = procesar_mooc(
-                        actividades,
-                        dataset_final,
-                        examen_entrada,
-                        examen_final,
-                    )
-                    nombre_archivo = "mooc_procesado.xlsx"
+                with redirect_stdout(mensajes_buffer):
+                    if tipo_actividad == "Videoconferencia":
+                        df_resultado = procesar_videoconferencia(actividades, dataset_final)
+                        nombre_archivo = "videoconferencia_procesado.xlsx"
+                    elif tipo_actividad == "Microlearning":
+                        df_resultado = procesar_microlearning(
+                            actividades,
+                            dataset_final,
+                            examen_entrada,
+                            examen_final,
+                        )
+                        nombre_archivo = "microlearning_procesado.xlsx"
+                    else:
+                        df_resultado = procesar_mooc(
+                            actividades,
+                            dataset_final,
+                            examen_entrada,
+                            examen_final,
+                        )
+                        nombre_archivo = "mooc_procesado.xlsx"
 
             st.success(f"{tipo_actividad} procesado correctamente.")
+            mostrar_mensajes_procesamiento(mensajes_buffer.getvalue())
             mostrar_metricas({"Registros procesados": len(df_resultado)})
             descargar_excel(df_resultado, nombre_archivo, f"Descargar {nombre_archivo}")
         except Exception as error:
+            mostrar_mensajes_procesamiento(mensajes_buffer.getvalue())
             st.error(str(error))
             with st.expander("Detalle técnico"):
                 st.exception(error)

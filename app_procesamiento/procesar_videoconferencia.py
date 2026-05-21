@@ -5,6 +5,7 @@ from app_procesamiento.core.columnas import (
     eliminar_columnas_actividad,
     mover_columna_despues_de_otra,
 )
+from app_procesamiento.core.diagnosticos import imprimir_diagnostico_duplicados_dni
 from app_procesamiento.core.dialogos import seleccionar_archivo, seleccionar_carpeta
 from app_procesamiento.core.lectores import leer_actividades, leer_calificados
 from app_procesamiento.core.transformaciones import (
@@ -28,6 +29,12 @@ def procesar() -> Path:
     )
     carpeta_salida = seleccionar_carpeta("Seleccione la carpeta donde guardar el resultado")
     ruta_salida = Path(carpeta_salida) / "videoconferencia_procesado.xlsx"
+
+    print("\nRevisando duplicados antes del procesamiento...\n")
+    imprimir_diagnostico_duplicados_dni(
+        ruta_actividades,
+        ruta_calificacion,
+    )
 
     print("\nLeyendo archivos...\n")
     actividades = leer_actividades(ruta_actividades)

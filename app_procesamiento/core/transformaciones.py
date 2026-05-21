@@ -17,6 +17,19 @@ PATRON_FECHA = re.compile(r"^\d{4}-\d{2}-\d{2}")
 
 
 def unir_fuentes(calificados: pd.DataFrame, actividades: pd.DataFrame) -> pd.DataFrame:
+    total_calificados = len(calificados)
+    total_actividades = len(actividades)
+
+    if total_calificados != total_actividades:
+        print(
+            "INCIDENTE: calificaciones y actividades tienen distinto numero "
+            "de registros antes del merge. "
+            "Conteo despues de leer/normalizar los archivos "
+            f"(calificaciones_procesadas={total_calificados}, "
+            f"actividades_procesadas={total_actividades}, "
+            f"diferencia={abs(total_calificados - total_actividades)})."
+        )
+
     return calificados.merge(
         actividades,
         on="DNI",

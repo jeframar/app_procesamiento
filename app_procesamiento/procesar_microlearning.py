@@ -9,6 +9,7 @@ from app_procesamiento.core.columnas import (
     ordenar_columnas_intermedias,
     ordenar_por_calificaciones,
 )
+from app_procesamiento.core.diagnosticos import imprimir_diagnostico_duplicados_dni
 from app_procesamiento.core.dialogos import (
     seleccionar_archivo,
     seleccionar_archivo_opcional,
@@ -49,6 +50,14 @@ def procesar() -> Path:
     )
     carpeta_salida = seleccionar_carpeta("Seleccione la carpeta donde guardar el resultado")
     ruta_salida = Path(carpeta_salida) / "microlearning_procesado.xlsx"
+
+    print("\nRevisando duplicados antes del procesamiento...\n")
+    imprimir_diagnostico_duplicados_dni(
+        ruta_actividades,
+        ruta_calificacion,
+        ruta_examen_entrada,
+        ruta_examen_final,
+    )
 
     print("\nLeyendo archivos...\n")
     actividades = leer_actividades(ruta_actividades)
