@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from app_procesamiento.core.utils import normalizar_dni
+from app_procesamiento.core.utils import normalizar_dni, normalizar_dni_para_merge
 
 
 @dataclass(frozen=True)
@@ -16,11 +16,12 @@ class DuplicadosDNI:
 
 
 def _contar_duplicados(serie: pd.Series) -> DuplicadosDNI:
-    dni = normalizar_dni(serie)
+    dni = normalizar_dni_para_merge(serie)
+    dni = dni[dni != ""]
     repetidos = dni[dni.duplicated(keep=False)]
 
     return DuplicadosDNI(
-        total_registros=len(dni),
+        total_registros=len(serie),
         dni_duplicados=int(repetidos.nunique()),
         filas_duplicadas=int(dni.duplicated(keep="first").sum()),
     )
@@ -92,13 +93,14 @@ def _imprimir_grupos_duplicados(
     max_grupos: int = 20,
     max_valores_por_grupo: int = 8,
 ) -> None:
-    dni_normalizado = normalizar_dni(serie)
+    dni_normalizado = normalizar_dni_para_merge(serie)
     df = pd.DataFrame(
         {
             "dni_normalizado": dni_normalizado,
             "valor_original": serie.map(_valor_visible),
         }
     )
+    df = df[df["dni_normalizado"] != ""]
 
     conteos = df.groupby("dni_normalizado", dropna=False).size()
     duplicados = conteos[conteos > 1].sort_values(ascending=False)
@@ -137,7 +139,10 @@ def _imprimir_diagnostico_dni_calificaciones(serie: pd.Series) -> None:
     mask_a_cero_sin_patron_invalido = mask_a_cero & ~mask_patron_invalido
 
     print("Valores DNI sospechosos en calificaciones")
-    print("(valor_prevalidado es el DNI despues de limpiar espacios/.0 y aplicar zfill)")
+    print(
+        "(valor_prevalidado es el DNI despues de limpiar espacios/.0 y aplicar zfill; "
+        "estos valores no se usan como llave de merge por DNI)"
+    )
     _imprimir_resumen_valores_dni(
         "fallan patron \\d{8} y se convierten en 00000000",
         serie,
@@ -221,7 +226,7 @@ def imprimir_diagnostico_duplicados_dni(
     ruta_examen_final: str | Path | None = None,
 ) -> None:
     print("Diagnostico previo de duplicados en DNI")
-    print("(antes de depurar/eliminar duplicados; agrupado por DNI normalizado)")
+    print("(antes de depurar/eliminar duplicados; agrupado por DNI valido para merge)")
 
     dni_calificados = _leer_dni_calificados(ruta_calificacion)
     dni_actividades = _leer_dni_actividades(ruta_actividades)

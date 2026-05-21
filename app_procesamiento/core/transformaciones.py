@@ -7,6 +7,8 @@ from app_procesamiento.core.utils import (
     MAP_PERFIL,
     completar_nulos,
     formatear_fecha,
+    normalizar_dni_para_merge,
+    normalizar_nombre_persona,
     normalizar_celular,
     normalizar_region,
     normalizar_ruc,
@@ -14,6 +16,145 @@ from app_procesamiento.core.utils import (
 
 
 PATRON_FECHA = re.compile(r"^\d{4}-\d{2}-\d{2}")
+
+
+def _asegurar_claves_merge(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+
+    if "_dni_merge" not in df.columns:
+        if "DNI" in df.columns:
+            df["_dni_merge"] = normalizar_dni_para_merge(df["DNI"])
+        else:
+            df["_dni_merge"] = ""
+
+    if "_nombre_merge" not in df.columns:
+        if "nombres_apellidos" in df.columns:
+            df["_nombre_merge"] = normalizar_nombre_persona(df["nombres_apellidos"])
+        else:
+            df["_nombre_merge"] = ""
+
+    return df
+
+
+def _mapear_ids_unicos(df: pd.DataFrame, columna_clave: str, columna_id: str) -> dict:
+    claves = df[columna_clave].fillna("").astype(str)
+    mask = claves != ""
+    conteos = claves[mask].value_counts()
+    claves_unicas = set(conteos[conteos == 1].index)
+
+    if not claves_unicas:
+        return {}
+
+    candidatos = df.loc[mask & claves.isin(claves_unicas), [columna_clave, columna_id]]
+    return candidatos.set_index(columna_clave)[columna_id].to_dict()
+
+
+def _contar_claves_ambiguas(df: pd.DataFrame, columna_clave: str) -> int:
+    claves = df[columna_clave].fillna("").astype(str)
+    conteos = claves[claves != ""].value_counts()
+    return int((conteos > 1).sum())
+
+
+def _fusionar_columnas_llave(
+    df: pd.DataFrame,
+    columnas: list[str],
+    sufijo_derecha: str,
+) -> pd.DataFrame:
+    for columna in columnas:
+        columna_derecha = f"{columna}{sufijo_derecha}"
+        if columna in df.columns and columna_derecha in df.columns:
+            df[columna] = df[columna].combine_first(df[columna_derecha])
+            df = df.drop(columns=[columna_derecha])
+        elif columna_derecha in df.columns:
+            df = df.rename(columns={columna_derecha: columna})
+
+    return df
+
+
+def merge_por_dni_o_nombre(
+    izquierda: pd.DataFrame,
+    derecha: pd.DataFrame,
+    nombre_derecha: str,
+    suffixes=("", "_der"),
+) -> pd.DataFrame:
+    izquierda = _asegurar_claves_merge(izquierda).reset_index(drop=True)
+    derecha = _asegurar_claves_merge(derecha).reset_index(drop=True)
+    izquierda["__left_id"] = range(len(izquierda))
+    derecha["__right_id"] = range(len(derecha))
+
+    pares: list[dict] = []
+    left_matched: set[int] = set()
+    right_matched: set[int] = set()
+
+    left_dni = _mapear_ids_unicos(izquierda, "_dni_merge", "__left_id")
+    right_dni = _mapear_ids_unicos(derecha, "_dni_merge", "__right_id")
+    for clave in sorted(set(left_dni) & set(right_dni)):
+        left_id = int(left_dni[clave])
+        right_id = int(right_dni[clave])
+        pares.append({"__left_id": left_id, "__right_id": right_id, "__merge_metodo": "DNI"})
+        left_matched.add(left_id)
+        right_matched.add(right_id)
+
+    izquierda_restante = izquierda.loc[~izquierda["__left_id"].isin(left_matched)]
+    derecha_restante = derecha.loc[~derecha["__right_id"].isin(right_matched)]
+    left_nombre = _mapear_ids_unicos(izquierda_restante, "_nombre_merge", "__left_id")
+    right_nombre = _mapear_ids_unicos(derecha_restante, "_nombre_merge", "__right_id")
+    for clave in sorted(set(left_nombre) & set(right_nombre)):
+        left_id = int(left_nombre[clave])
+        right_id = int(right_nombre[clave])
+        pares.append(
+            {"__left_id": left_id, "__right_id": right_id, "__merge_metodo": "nombre"}
+        )
+        left_matched.add(left_id)
+        right_matched.add(right_id)
+
+    for left_id in izquierda.loc[
+        ~izquierda["__left_id"].isin(left_matched), "__left_id"
+    ]:
+        pares.append({"__left_id": int(left_id), "__right_id": pd.NA, "__merge_metodo": "solo_izquierda"})
+
+    for right_id in derecha.loc[
+        ~derecha["__right_id"].isin(right_matched), "__right_id"
+    ]:
+        pares.append({"__left_id": pd.NA, "__right_id": int(right_id), "__merge_metodo": "solo_derecha"})
+
+    puente = pd.DataFrame(pares)
+    df = (
+        puente.merge(izquierda, on="__left_id", how="left")
+        .merge(derecha, on="__right_id", how="left", suffixes=suffixes)
+    )
+
+    df = _fusionar_columnas_llave(
+        df,
+        ["DNI", "_dni_original", "_dni_merge", "_nombre_merge"],
+        suffixes[1],
+    )
+
+    total_dni = sum(1 for par in pares if par["__merge_metodo"] == "DNI")
+    total_nombre = sum(1 for par in pares if par["__merge_metodo"] == "nombre")
+    total_solo_izquierda = sum(1 for par in pares if par["__merge_metodo"] == "solo_izquierda")
+    total_solo_derecha = sum(1 for par in pares if par["__merge_metodo"] == "solo_derecha")
+    ambiguos_dni_izq = _contar_claves_ambiguas(izquierda, "_dni_merge")
+    ambiguos_dni_der = _contar_claves_ambiguas(derecha, "_dni_merge")
+    ambiguos_nombre_izq = _contar_claves_ambiguas(izquierda_restante, "_nombre_merge")
+    ambiguos_nombre_der = _contar_claves_ambiguas(derecha_restante, "_nombre_merge")
+
+    print(
+        f"Merge con {nombre_derecha}: "
+        f"{total_dni} por DNI, "
+        f"{total_nombre} por nombre, "
+        f"{total_solo_izquierda} solo base, "
+        f"{total_solo_derecha} solo {nombre_derecha}."
+    )
+
+    if any([ambiguos_dni_izq, ambiguos_dni_der, ambiguos_nombre_izq, ambiguos_nombre_der]):
+        print(
+            f"INCIDENTE: merge con {nombre_derecha} omitio llaves ambiguas "
+            f"(DNI base={ambiguos_dni_izq}, DNI {nombre_derecha}={ambiguos_dni_der}, "
+            f"nombre base={ambiguos_nombre_izq}, nombre {nombre_derecha}={ambiguos_nombre_der})."
+        )
+
+    return df.drop(columns=["__left_id", "__right_id", "__merge_metodo"], errors="ignore")
 
 
 def unir_fuentes(calificados: pd.DataFrame, actividades: pd.DataFrame) -> pd.DataFrame:
@@ -30,10 +171,10 @@ def unir_fuentes(calificados: pd.DataFrame, actividades: pd.DataFrame) -> pd.Dat
             f"diferencia={abs(total_calificados - total_actividades)})."
         )
 
-    return calificados.merge(
+    return merge_por_dni_o_nombre(
+        calificados,
         actividades,
-        on="DNI",
-        how="outer",
+        "actividades",
         suffixes=("", "_act"),
     )
 
@@ -48,7 +189,8 @@ def eliminar_columnas_basura(df: pd.DataFrame) -> pd.DataFrame:
     if cols_fecha:
         df = df.drop(columns=cols_fecha)
 
-    return df.loc[:, ~df.columns.astype(str).str.startswith("Unnamed")]
+    columnas = df.columns.astype(str)
+    return df.loc[:, ~(columnas.str.startswith("Unnamed") | (columnas == ""))]
 
 
 def normalizar_nivel_certificacion(df: pd.DataFrame) -> pd.DataFrame:
@@ -153,7 +295,10 @@ def eliminar_columnas_exportacion(df: pd.DataFrame) -> pd.DataFrame:
         "ambito_desempeno",
         "Dirección de correo",
         "Ciudad",
-        "match_entidad"
+        "match_entidad",
+        "_dni_original",
+        "_dni_merge",
+        "_nombre_merge",
     ]
     df = df.drop(columns=cols_eliminar, errors="ignore")
 

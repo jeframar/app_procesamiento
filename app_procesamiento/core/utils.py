@@ -63,6 +63,46 @@ def normalizar_dni(serie: pd.Series) -> pd.Series:
     return serie
 
 
+def normalizar_dni_para_merge(serie: pd.Series) -> pd.Series:
+    dni = (
+        serie.fillna("")
+        .astype(str)
+        .str.replace(r"\.0$", "", regex=True)
+        .str.replace(r"\s+", "", regex=True)
+    )
+
+    solo_digitos = dni.str.fullmatch(r"\d+")
+    dni_sin_ceros = dni.where(~solo_digitos, dni.str.lstrip("0"))
+    dni_sin_ceros = dni_sin_ceros.mask(dni_sin_ceros == "", "0")
+
+    normalizado = dni.copy()
+    mask_ocho_o_menos = solo_digitos & (dni.str.len() <= 8)
+    mask_ceros_extra = solo_digitos & (dni.str.len() > 8) & (dni_sin_ceros.str.len() <= 8)
+    normalizado.loc[mask_ocho_o_menos | mask_ceros_extra] = (
+        dni_sin_ceros.loc[mask_ocho_o_menos | mask_ceros_extra].str.zfill(8)
+    )
+
+    valido = normalizado.str.fullmatch(r"\d{8}") & (normalizado != "00000000")
+    normalizado.loc[~valido] = ""
+    return normalizado
+
+
+def normalizar_nombre_persona(serie: pd.Series) -> pd.Series:
+    return (
+        serie.fillna("")
+        .astype(str)
+        .str.upper()
+        .apply(
+            lambda x: unicodedata.normalize("NFKD", x)
+            .encode("ascii", "ignore")
+            .decode("utf-8")
+        )
+        .str.replace(r"[^A-Z0-9]+", " ", regex=True)
+        .str.replace(r"\s+", " ", regex=True)
+        .str.strip()
+    )
+
+
 def normalizar_celular(serie: pd.Series) -> pd.Series:
     serie = (
         serie.fillna("")

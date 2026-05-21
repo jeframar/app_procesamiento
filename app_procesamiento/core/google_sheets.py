@@ -19,6 +19,29 @@ SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 MAX_REINTENTOS = 4
 ESPERA_BASE_SEGUNDOS = 2
 T = TypeVar("T")
+PROXY_ENV_VARS = [
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "ALL_PROXY",
+    "http_proxy",
+    "https_proxy",
+    "all_proxy",
+]
+
+
+def limpiar_proxy_local_invalido() -> None:
+    removidas = []
+    for variable in PROXY_ENV_VARS:
+        valor = os.environ.get(variable, "")
+        if "127.0.0.1:9" in valor or "localhost:9" in valor:
+            os.environ.pop(variable, None)
+            removidas.append(variable)
+
+    if removidas:
+        print(
+            "Se omitio proxy local invalido para conectar con Google: "
+            + ", ".join(sorted(removidas))
+        )
 
 
 def authenticate(
@@ -26,6 +49,7 @@ def authenticate(
     token_path: Path,
     scopes: list[str] | None = None,
 ):
+    limpiar_proxy_local_invalido()
     scopes = scopes or SCOPES
     creds = None
 

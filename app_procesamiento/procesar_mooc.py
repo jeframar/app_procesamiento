@@ -24,6 +24,7 @@ from app_procesamiento.core.transformaciones import (
     eliminar_columnas_basura,
     eliminar_columnas_exportacion,
     limpiar_campos_generales,
+    merge_por_dni_o_nombre,
     unir_fuentes,
 )
 
@@ -68,9 +69,14 @@ def procesar() -> Path:
     df = unir_fuentes(calificados, actividades)
 
     if examen_entrada is not None:
-        df = df.merge(examen_entrada, on="DNI", how="outer")
+        df = merge_por_dni_o_nombre(df, examen_entrada, "examen entrada")
 
-    df = df.merge(examen_final, on="DNI", how="outer", suffixes=("", "_final"))
+    df = merge_por_dni_o_nombre(
+        df,
+        examen_final,
+        "examen final",
+        suffixes=("", "_final"),
+    )
 
     df = eliminar_columnas_actividad(df, "mooc")
     df = eliminar_columnas_basura(df)

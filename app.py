@@ -44,7 +44,12 @@ from app_procesamiento.core.google_sheets import (
     build_sheets_service,
     extract_spreadsheet_id,
 )
-from app_procesamiento.core.lectores import leer_calificados, leer_examen, leer_examen_final
+from app_procesamiento.core.lectores import (
+    leer_actividades,
+    leer_calificados,
+    leer_examen,
+    leer_examen_final,
+)
 from app_procesamiento.core.limpieza_laboral import (
     aplicar_correcciones_post_match,
     aplicar_reglas_limpieza_inicial,
@@ -54,9 +59,9 @@ from app_procesamiento.core.transformaciones import (
     eliminar_columnas_basura,
     eliminar_columnas_exportacion,
     limpiar_campos_generales,
+    merge_por_dni_o_nombre,
     unir_fuentes,
 )
-from app_procesamiento.core.utils import normalizar_dni
 
 
 st.set_page_config(
@@ -74,24 +79,7 @@ def to_excel_bytes(df: pd.DataFrame) -> bytes:
 
 def leer_actividades_upload(uploaded_file) -> pd.DataFrame:
     uploaded_file.seek(0)
-    cols = pd.read_csv(
-        uploaded_file,
-        encoding="utf-16",
-        sep="\t",
-        nrows=0,
-    ).columns
-
-    uploaded_file.seek(0)
-    df = pd.read_csv(
-        uploaded_file,
-        encoding="utf-16",
-        sep="\t",
-        dtype={"DNI": "object"},
-        usecols=[cols[1]] + list(cols[3:]),
-    )
-
-    df["DNI"] = normalizar_dni(df["DNI"])
-    return df
+    return leer_actividades(uploaded_file)
 
 
 def leer_excel(uploaded_file) -> pd.DataFrame:
@@ -237,13 +225,17 @@ def procesar_microlearning(actividades_file, dataset_file, examen_entrada_file, 
     df = unir_fuentes(calificados, actividades)
 
     if examen_entrada_file is not None:
-        df = df.merge(leer_examen_upload(examen_entrada_file), on="DNI", how="outer")
+        df = merge_por_dni_o_nombre(
+            df,
+            leer_examen_upload(examen_entrada_file),
+            "examen entrada",
+        )
 
     if examen_final_file is not None:
-        df = df.merge(
+        df = merge_por_dni_o_nombre(
+            df,
             leer_examen_final_upload(examen_final_file),
-            on="DNI",
-            how="outer",
+            "examen final",
             suffixes=("", "_final"),
         )
 
@@ -272,12 +264,16 @@ def procesar_mooc(actividades_file, dataset_file, examen_entrada_file, examen_fi
     df = unir_fuentes(calificados, actividades)
 
     if examen_entrada_file is not None:
-        df = df.merge(leer_examen_upload(examen_entrada_file), on="DNI", how="outer")
+        df = merge_por_dni_o_nombre(
+            df,
+            leer_examen_upload(examen_entrada_file),
+            "examen entrada",
+        )
 
-    df = df.merge(
+    df = merge_por_dni_o_nombre(
+        df,
         leer_examen_final_upload(examen_final_file),
-        on="DNI",
-        how="outer",
+        "examen final",
         suffixes=("", "_final"),
     )
 
@@ -441,16 +437,25 @@ p, label, span { color: var(--oece-text); }
     padding: 0.65rem 1.2rem;
     transition: all 0.15s ease-in-out;
 }
+.stButton > button:not(:disabled) * {
+    color: #FFFFFF !important;
+}
 .stButton > button:hover:not(:disabled) {
     background-color: var(--oece-blue-dark);
     border-color: var(--oece-blue-dark);
     color: #FFFFFF;
+}
+.stButton > button:hover:not(:disabled) * {
+    color: #FFFFFF !important;
 }
 .stButton > button:disabled {
     background-color: #E5EAF0;
     color: #8A94A3;
     border: 1px solid #D0D7E2;
     cursor: not-allowed;
+}
+.stButton > button:disabled * {
+    color: #8A94A3 !important;
 }
 
 .stDownloadButton > button {
