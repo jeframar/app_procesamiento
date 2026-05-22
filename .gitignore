@@ -7,4 +7,5 @@ token.json
 *.csv
 drive1-491915-3c0e30559de6.json
 client_secret_web.json
+client_secret*.json
 

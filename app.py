@@ -3,17 +3,13 @@ from __future__ import annotations
 from contextlib import redirect_stdout
 from io import BytesIO
 from io import StringIO
-import json
-import os
 from pathlib import Path
 import sys
 
 import pandas as pd
 import streamlit as st
-from google.auth.transport.requests import Request
 from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials as UserCredentials
-from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from streamlit.errors import StreamlitSecretNotFoundError
 
@@ -21,19 +17,6 @@ from streamlit.errors import StreamlitSecretNotFoundError
 ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-
-OAUTH_WEB_CREDENTIALS_KEY = "google_oauth_credentials"
-OAUTH_WEB_STATE_KEY = "google_oauth_state"
-OAUTH_CALLBACK_QUERY_PARAMS = {
-    "authuser",
-    "code",
-    "error",
-    "error_description",
-    "hd",
-    "prompt",
-    "scope",
-    "state",
-}
 
 from app_procesamiento import config
 from app_procesamiento.core.certificados import (
@@ -59,9 +42,7 @@ from app_procesamiento.core.entidades import (
 )
 from app_procesamiento.core.google_sheets import (
     SCOPES,
-    build_sheets_service,
     extract_spreadsheet_id,
-    limpiar_proxy_local_invalido,
 )
 from app_procesamiento.core.lectores import (
     leer_actividades,
@@ -134,180 +115,70 @@ def streamlit_service_account_info() -> dict | None:
     return streamlit_secret_section("gcp_service_account")
 
 
-def streamlit_oauth_web_info() -> dict | None:
-    info = streamlit_secret_section("google_oauth_web")
-    if info is None:
-        return None
-
-    required = ("client_id", "client_secret", "redirect_uri")
-    missing = [key for key in required if not str(info.get(key, "")).strip()]
-    if missing:
-        raise RuntimeError(
-            "Faltan valores en [google_oauth_web]: " + ", ".join(missing)
-        )
-
-    return {
-        "client_id": str(info["client_id"]).strip(),
-        "client_secret": str(info["client_secret"]).strip(),
-        "redirect_uri": str(info["redirect_uri"]).strip(),
-        "auth_uri": str(
-            info.get("auth_uri", "https://accounts.google.com/o/oauth2/auth")
-        ).strip(),
-        "token_uri": str(
-            info.get("token_uri", "https://oauth2.googleapis.com/token")
-        ).strip(),
-    }
+def streamlit_auth_info() -> dict | None:
+    return streamlit_secret_section("auth")
 
 
-def oauth_web_client_config(info: dict) -> dict:
-    return {
-        "web": {
-            "client_id": info["client_id"],
-            "client_secret": info["client_secret"],
-            "auth_uri": info["auth_uri"],
-            "token_uri": info["token_uri"],
-            "redirect_uris": [info["redirect_uri"]],
-        }
-    }
+def has_legacy_oauth_web_config() -> bool:
+    return streamlit_secret_section("google_oauth_web") is not None
 
 
-def build_oauth_web_flow(info: dict, state: str | None = None) -> Flow:
-    redirect_uri = info["redirect_uri"]
-    if redirect_uri.startswith(("http://localhost", "http://127.0.0.1")):
-        os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
-
-    flow = Flow.from_client_config(
-        oauth_web_client_config(info),
-        scopes=SCOPES,
-        state=state,
-    )
-    flow.redirect_uri = redirect_uri
-    return flow
+def user_is_logged_in() -> bool:
+    return bool(getattr(st.user, "is_logged_in", False))
 
 
-def query_param_value(name: str) -> str | None:
-    value = st.query_params.get(name)
-    if isinstance(value, list):
-        return value[0] if value else None
-    return value
-
-
-def clear_oauth_query_params() -> None:
-    for key in list(st.query_params.keys()):
-        if key in OAUTH_CALLBACK_QUERY_PARAMS:
-            del st.query_params[key]
-
-
-def clear_google_oauth_session() -> None:
-    st.session_state.pop(OAUTH_WEB_CREDENTIALS_KEY, None)
-    st.session_state.pop(OAUTH_WEB_STATE_KEY, None)
-
-
-def oauth_web_credentials() -> UserCredentials | None:
-    raw_credentials = st.session_state.get(OAUTH_WEB_CREDENTIALS_KEY)
-    if not raw_credentials:
-        return None
-
+def streamlit_access_token() -> str | None:
     try:
-        creds = UserCredentials.from_authorized_user_info(
-            json.loads(raw_credentials),
-            scopes=SCOPES,
-        )
+        return st.user.tokens.get("access")
     except Exception:
-        clear_google_oauth_session()
         return None
 
-    if creds and not creds.has_scopes(SCOPES):
-        clear_google_oauth_session()
-        return None
 
-    if creds and creds.expired and creds.refresh_token:
-        try:
-            limpiar_proxy_local_invalido()
-            creds.refresh(Request())
-            st.session_state[OAUTH_WEB_CREDENTIALS_KEY] = creds.to_json()
-        except Exception:
-            clear_google_oauth_session()
-            return None
+def streamlit_user_credentials() -> UserCredentials:
+    access_token = streamlit_access_token()
+    if not access_token:
+        raise RuntimeError(
+            "La autenticacion de Streamlit no expuso un access token. "
+            "Configura expose_tokens = \"access\" y agrega el scope de Google Sheets "
+            "en [auth].client_kwargs."
+        )
 
-    if creds and creds.valid:
-        return creds
-
-    return None
+    return UserCredentials(token=access_token, scopes=SCOPES)
 
 
-def handle_oauth_callback(info: dict) -> None:
-    oauth_error = query_param_value("error")
-    if oauth_error:
-        description = query_param_value("error_description") or oauth_error
-        clear_oauth_query_params()
-        st.error(f"No se pudo completar el inicio de sesion con Google: {description}")
-        st.stop()
-
-    code = query_param_value("code")
-    if not code:
-        return
-
-    received_state = query_param_value("state")
-    expected_state = st.session_state.get(OAUTH_WEB_STATE_KEY)
-    if not expected_state or received_state != expected_state:
-        clear_google_oauth_session()
-        clear_oauth_query_params()
-        st.error("No se pudo validar la respuesta de Google. Inicia sesion nuevamente.")
-        st.stop()
-
-    flow = build_oauth_web_flow(info, state=expected_state)
-    try:
-        limpiar_proxy_local_invalido()
-        flow.fetch_token(code=code)
-    except Exception as error:
-        clear_google_oauth_session()
-        clear_oauth_query_params()
-        st.error(f"No se pudo completar el inicio de sesion con Google: {error}")
-        st.stop()
-
-    st.session_state[OAUTH_WEB_CREDENTIALS_KEY] = flow.credentials.to_json()
-    st.session_state.pop(OAUTH_WEB_STATE_KEY, None)
-    clear_oauth_query_params()
-    st.rerun()
-
-
-def authorization_url(info: dict) -> str:
-    flow = build_oauth_web_flow(info)
-    url, state = flow.authorization_url(
-        access_type="offline",
-        include_granted_scopes="true",
-        prompt="select_account",
-    )
-    st.session_state[OAUTH_WEB_STATE_KEY] = state
-    return url
-
-
-def render_oauth_login(info: dict) -> None:
+def render_streamlit_login() -> None:
     st.markdown("### Iniciar sesion con Google")
     st.info(
         "Autenticate con tu cuenta institucional para acceder a Google Sheets. "
         "Luego podras usar la app completa durante esta sesion."
     )
-    st.link_button(
-        "Iniciar sesion con Google",
-        authorization_url(info),
-        type="primary",
-        use_container_width=False,
-    )
+    if st.button("Iniciar sesion con Google", type="primary"):
+        st.login()
 
 
 def ensure_google_auth_ready() -> None:
     if streamlit_service_account_info() is not None:
         return
 
-    oauth_info = streamlit_oauth_web_info()
-    if oauth_info is None:
+    if streamlit_auth_info() is None:
+        if has_legacy_oauth_web_config():
+            st.error(
+                "La configuracion [google_oauth_web] ya no se usa. "
+                "Migra los secrets al bloque [auth] de Streamlit."
+            )
+            st.stop()
         return
 
-    handle_oauth_callback(oauth_info)
-    if oauth_web_credentials() is None:
-        render_oauth_login(oauth_info)
+    if not user_is_logged_in():
+        render_streamlit_login()
+        st.stop()
+
+    if streamlit_access_token() is None:
+        st.error(
+            "Inicio de sesion correcto, pero falta el access token para Google Sheets. "
+            "En [auth], configura expose_tokens = \"access\" y el scope "
+            "https://www.googleapis.com/auth/spreadsheets."
+        )
         st.stop()
 
 
@@ -320,30 +191,19 @@ def sheets_service_from_secrets():
         creds = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
         return build("sheets", "v4", credentials=creds, cache_discovery=False)
 
-    oauth_info = streamlit_oauth_web_info()
-    if oauth_info is not None:
-        creds = oauth_web_credentials()
-        if creds is None:
-            raise RuntimeError(
-                "La sesion de Google no esta activa. Vuelve a iniciar sesion."
-            )
+    if streamlit_auth_info() is not None:
+        creds = streamlit_user_credentials()
         return build("sheets", "v4", credentials=creds, cache_discovery=False)
 
-    credentials_path = config.CREDENTIALS_PATH
-    token_path = config.TOKEN_PATH
-    if not credentials_path.is_absolute():
-        credentials_path = ROOT / credentials_path
-    if not token_path.is_absolute():
-        token_path = ROOT / token_path
-
-    if credentials_path.exists():
-        return build_sheets_service(credentials_path, token_path)
+    if has_legacy_oauth_web_config():
+        raise RuntimeError(
+            "La configuracion [google_oauth_web] ya no se usa. "
+            "Migra los secrets al bloque [auth] de Streamlit."
+        )
 
     raise RuntimeError(
         "No hay credenciales de Google Sheets configuradas. "
-        "Para ejecucion local, crea .streamlit/secrets.toml a partir de "
-        ".streamlit/secrets.example.toml o coloca credentials.json en la raiz "
-        "del proyecto. En Streamlit Cloud, configura [google_oauth_web] o "
+        "Configura [auth] o "
         "[gcp_service_account] en App settings > Secrets."
     )
 
@@ -846,14 +706,14 @@ def render_auth_status_sidebar() -> None:
     if streamlit_service_account_info() is not None:
         return
 
-    if streamlit_oauth_web_info() is None or oauth_web_credentials() is None:
+    if streamlit_auth_info() is None or not user_is_logged_in():
         return
 
     st.markdown("### Acceso")
-    st.caption("Sesion de Google activa.")
+    email = st.user.get("email", "Sesion de Google activa")
+    st.caption(str(email))
     if st.button("Cerrar sesion", key="btn_logout_google", use_container_width=True):
-        clear_google_oauth_session()
-        st.rerun()
+        st.logout()
     st.markdown("---")
 
 
