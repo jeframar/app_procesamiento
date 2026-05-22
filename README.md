@@ -26,21 +26,39 @@ como repositorio independiente a GitHub.
 2. Sube el contenido de `streamlit_procesamiento/` como contenido del repo.
 3. En Streamlit Community Cloud crea una app nueva.
 4. Selecciona el repo y usa `app.py` como main file.
-5. En `App settings > Secrets`, pega tus credenciales de service account.
+5. En `App settings > Secrets`, configura OAuth Web o una service account.
 
 ## Credenciales Google Sheets
 
-La app usa una service account de Google Cloud. No uses `credentials.json` ni
-`token.json` en Streamlit Cloud.
+No subas `credentials.json`, `token.json`, `.streamlit/secrets.toml` ni claves
+JSON al repositorio, aunque sea privado.
 
-1. Crea o usa una service account en Google Cloud.
-2. Genera una clave JSON.
-3. Copia los campos del JSON al formato de `.streamlit/secrets.example.toml`.
-4. Comparte el Google Sheet de `bd_entidades` con el correo `client_email`.
-5. Dale permiso de editor si quieres registrar pendientes en `añadir_bd` y
-   `entidades_sin_ruc`.
+### Opcion recomendada: OAuth Web por usuario
 
-Ejemplo de secrets:
+Usa esta opcion cuando cada usuario debe acceder con su cuenta institucional.
+La app pedira iniciar sesion con Google al entrar y guardara las credenciales
+solo en la sesion de Streamlit.
+
+1. En Google Cloud Console crea un OAuth Client ID de tipo `Web application`.
+2. Agrega como `Authorized redirect URI` la URL de la app, por ejemplo
+   `https://tu-app.streamlit.app/`.
+3. Para pruebas locales, agrega tambien `http://localhost:8501/`.
+4. En Streamlit Cloud, pega este bloque en `App settings > Secrets`:
+
+```toml
+[google_oauth_web]
+client_id = "tu-client-id.apps.googleusercontent.com"
+client_secret = "tu-client-secret"
+redirect_uri = "https://tu-app.streamlit.app/"
+```
+
+Cada usuario debe tener acceso directo al Google Sheet con su cuenta
+institucional.
+
+### Opcion alternativa: service account
+
+Usa esta opcion solo si tu organizacion permite compartir el Google Sheet con el
+correo `client_email` de una service account.
 
 ```toml
 [gcp_service_account]
@@ -80,16 +98,21 @@ terminado sin errores.
 
 ### 3. Credenciales para ejecucion local
 
-La app usa el flujo OAuth de escritorio: coloca `credentials.json` en la raiz
+Para mantener el flujo local existente, coloca `credentials.json` en la raiz
 del proyecto. Se obtiene descargando la clave del cliente OAuth desde
-Google Cloud Console (proyecto `drive1-491915`, tipo "Aplicacion de escritorio").
+Google Cloud Console (tipo "Aplicacion de escritorio").
 
 La primera vez que se conecte a Google Sheets se abrira el navegador para
 autorizar el acceso. Tras eso se crea `token.json` automaticamente y no vuelve
 a pedirse autorizacion.
 
-Ambos archivos estan en `.gitignore` y nunca se suben al repositorio. Al clonar
-en un dispositivo nuevo hay que copiarlos manualmente.
+Para probar el mismo flujo que Streamlit Cloud, copia
+`.streamlit/secrets.example.toml` como `.streamlit/secrets.toml`, configura
+`[google_oauth_web]` y usa `redirect_uri = "http://localhost:8501/"`.
+
+`credentials.json`, `token.json` y `.streamlit/secrets.toml` estan en
+`.gitignore` y nunca se suben al repositorio. Al clonar en un dispositivo nuevo
+hay que configurarlos manualmente.
 
 ## Flujo de uso
 

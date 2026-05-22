@@ -31,8 +31,9 @@ COLUMNAS_ELIMINAR_ACTIVIDAD = {
         "grupos",
         "total_curso",
         "accion",
+        "match_entidad",
         "Actualice sus datos para participar en la videoconferencia",
-        "Actualice sus datos para participar en el taller",
+        "Actualice sus datos para participar en el taller"
     ],
 }
 

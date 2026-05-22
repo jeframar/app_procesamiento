@@ -1,3 +1,5 @@
+import unicodedata
+
 import numpy as np
 import pandas as pd
 
@@ -22,30 +24,88 @@ def agregar_certificado_por_total(
     return df
 
 
+def _normalizar_texto(valor) -> str:
+    if pd.isna(valor):
+        return ""
+
+    texto = str(valor).strip().lower()
+    texto = unicodedata.normalize("NFKD", texto)
+    return "".join(caracter for caracter in texto if not unicodedata.combining(caracter))
+
+
+def _estado_finalizado(serie: pd.Series) -> pd.Series:
+    return serie.map(_normalizar_texto).eq("finalizado")
+
+
+def _es_columna_estado_actividad(serie: pd.Series) -> bool:
+    valores = serie.map(_normalizar_texto)
+    valores = valores[~valores.isin(["", "nan", "none"])]
+    if valores.empty:
+        return False
+
+    estados_validos = {"finalizado", "no finalizado"}
+    return bool(valores.isin(estados_validos).all())
+
+
+def _es_columna_excluida_asistencia(columna) -> bool:
+    nombre = _normalizar_texto(columna)
+    fragmentos_excluidos = [
+        "actualice sus datos",
+        "grabacion",
+        "encuesta",
+        "constancia",
+        "direccion de correo",
+        "ciudad",
+        "numero de id",
+        "dni",
+        "_dni",
+        "_nombre",
+    ]
+    return any(fragmento in nombre for fragmento in fragmentos_excluidos)
+
+
+def _columnas_asistencia_en_vivo(df: pd.DataFrame) -> list:
+    return [
+        columna
+        for columna in df.columns
+        if not _es_columna_excluida_asistencia(columna)
+        and _es_columna_estado_actividad(df[columna])
+    ]
+
+
+def _buscar_columna_por_fragmento(df: pd.DataFrame, fragmento: str):
+    fragmento = _normalizar_texto(fragmento)
+    for columna in df.columns:
+        if fragmento in _normalizar_texto(columna):
+            return columna
+    return None
+
+
 def calcular_condicion_y_constancia(
     df: pd.DataFrame,
     fecha_emision: str = FECHA_EMISION_CERTIFICADO,
 ) -> pd.DataFrame:
-    cols = list(df.columns)
-    if "region" not in cols:
-        return df
+    columnas_asistencia_vivo = _columnas_asistencia_en_vivo(df)
+    if columnas_asistencia_vivo:
+        asistencia_principal = pd.Series(False, index=df.index)
+        for columna in columnas_asistencia_vivo:
+            asistencia_principal = asistencia_principal | _estado_finalizado(df[columna])
+    else:
+        cols = list(df.columns)
+        if "region" not in cols:
+            return df
 
-    i_region = cols.index("region")
-    if i_region + 1 >= len(cols):
-        return df
+        i_region = cols.index("region")
+        if i_region + 1 >= len(cols):
+            return df
 
-    col_siguiente = cols[i_region + 1]
-    asistencia_principal = df[col_siguiente].eq("Finalizado")
+        asistencia_principal = _estado_finalizado(df[cols[i_region + 1]])
 
-    columnas_grabacion = [
-        "Accede a la grabación de la videoconferencia",
-        "Accede a la grabación del evento.",
-    ]
-    col_grabacion = next((c for c in columnas_grabacion if c in df.columns), None)
+    col_grabacion = _buscar_columna_por_fragmento(df, "grabacion")
     if col_grabacion is None:
         asistencia_grabacion = pd.Series(False, index=df.index)
     else:
-        asistencia_grabacion = df[col_grabacion].eq("Finalizado")
+        asistencia_grabacion = _estado_finalizado(df[col_grabacion])
 
     df["condicion"] = np.where(
         asistencia_principal | asistencia_grabacion,
@@ -53,12 +113,11 @@ def calcular_condicion_y_constancia(
         "INASISTENTE",
     )
 
-    columnas_constancia = ["Constancia de asistencia", "Constancia"]
-    col_constancia = next((c for c in columnas_constancia if c in df.columns), None)
+    col_constancia = _buscar_columna_por_fragmento(df, "constancia")
     if col_constancia is None:
         constancia_finalizada = pd.Series(False, index=df.index)
     else:
-        constancia_finalizada = df[col_constancia].eq("Finalizado")
+        constancia_finalizada = _estado_finalizado(df[col_constancia])
 
     df["certificado"] = np.where(
         (df["condicion"] == "ASISTENTE") & constancia_finalizada,
