@@ -8,7 +8,8 @@ videoconferencias, microlearning o MOOC.
 ```text
 streamlit_procesamiento/
 ├─ app.py
-├─ requirements.txt
+├─ pyproject.toml
+├─ uv.lock
 ├─ runtime.txt
 ├─ .streamlit/
 │  ├─ config.toml
@@ -26,7 +27,12 @@ como repositorio independiente a GitHub.
 2. Sube el contenido de `streamlit_procesamiento/` como contenido del repo.
 3. En Streamlit Community Cloud crea una app nueva.
 4. Selecciona el repo y usa `app.py` como main file.
-5. En `App settings > Secrets`, configura Streamlit Auth o una service account.
+5. En `Advanced settings`, usa Python 3.12.
+6. En `App settings > Secrets`, configura Streamlit Auth o una service account.
+
+El repositorio usa `uv.lock` como unica fuente de dependencias para Cloud.
+Evita agregar `requirements.txt`, `Pipfile` o `environment.yml` para que
+Streamlit Cloud no tenga archivos competidores.
 
 ## Credenciales Google Sheets
 
@@ -41,13 +47,13 @@ expuesto por Streamlit para leer Google Sheets.
 
 1. En Google Cloud Console crea un OAuth Client ID de tipo `Web application`.
 2. Agrega como `Authorized redirect URI` la URL de callback de la app, por ejemplo
-   `https://tu-app.streamlit.app/oauth2callback`.
+   `https://tu-app.streamlit.app/~/+/oauth2callback`.
 3. Para pruebas locales, agrega tambien `http://localhost:8501/oauth2callback`.
 4. En Streamlit Cloud, pega este bloque en `App settings > Secrets`:
 
 ```toml
 [auth]
-redirect_uri = "https://tu-app.streamlit.app/oauth2callback"
+redirect_uri = "https://tu-app.streamlit.app/~/+/oauth2callback"
 cookie_secret = "genera-un-secreto-largo-y-aleatorio"
 client_id = "tu-web-client-id.apps.googleusercontent.com"
 client_secret = "tu-client-secret"
@@ -58,6 +64,12 @@ client_kwargs = { "scope" = "openid email profile https://www.googleapis.com/aut
 
 Cada usuario debe tener acceso directo al Google Sheet con su cuenta
 institucional.
+
+Si aparece `MismatchingStateError`, revisa que el `redirect_uri` de los secrets
+de Streamlit y el `Authorized redirect URI` de Google Cloud sean identicos,
+incluyendo `https`, dominio y ruta. Despues de cambiar secrets, reinicia la app,
+cierra callbacks antiguos, borra cookies de la app si hace falta y abre la app
+directamente en `https://tu-app.streamlit.app`, no incrustada en otro sitio.
 
 ### Opcion alternativa: service account
 
@@ -95,10 +107,8 @@ uv sync
 uv run streamlit run app.py
 ```
 
-Usar siempre `uv run` para que el comando se ejecute dentro del entorno virtual
-`.venv/` creado por uv. Ejecutar `streamlit run app.py` directamente usa el
-Python del sistema y produce `ModuleNotFoundError` aunque `uv sync` haya
-terminado sin errores.
+Usa siempre `uv run` para que Streamlit encuentre exactamente las dependencias
+instaladas desde `uv.lock`.
 
 ### 3. Credenciales para ejecucion local
 

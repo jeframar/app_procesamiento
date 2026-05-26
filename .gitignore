@@ -1,5 +1,6 @@
 __pycache__/
 *.pyc
+.uv-cache/
 .streamlit/secrets.toml
 credentials.json
 token.json
