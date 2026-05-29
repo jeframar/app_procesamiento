@@ -1,10 +1,17 @@
 import re
+import unicodedata
 
 import pandas as pd
 
-from app_procesamiento.core.utils import (
+from app_procesamiento.core.mapeos import (
+    MAP_CLASIFICACION_EMPRESA,
     MAP_GRADO,
     MAP_PERFIL,
+    MAP_RUBRO_ORGANIZACION,
+    VALORES_MYPE_NO,
+    VALORES_MYPE_SI,
+)
+from app_procesamiento.core.utils import (
     completar_nulos,
     formatear_fecha,
     normalizar_dni_para_merge,
@@ -16,6 +23,17 @@ from app_procesamiento.core.utils import (
 
 
 PATRON_FECHA = re.compile(r"^\d{4}-\d{2}-\d{2}")
+
+
+def _normalizar_clave_clasificacion(valor) -> str:
+    if pd.isna(valor):
+        return ""
+
+    texto = str(valor).strip().upper()
+    texto = unicodedata.normalize("NFKD", texto)
+    texto = "".join(caracter for caracter in texto if not unicodedata.combining(caracter))
+    texto = re.sub(r"[^A-Z0-9]+", " ", texto)
+    return re.sub(r"\s+", " ", texto).strip()
 
 
 def _asegurar_claves_merge(df: pd.DataFrame) -> pd.DataFrame:
@@ -217,7 +235,28 @@ def normalizar_clasificacion_empresa(df: pd.DataFrame) -> pd.DataFrame:
         return df
 
     clasificacion = df["clasificacion_empresa"].fillna("").astype(str).str.strip()
-    df["clasificacion_empresa"] = clasificacion.mask(clasificacion.isin(["", "-"]), "No indica")
+    claves = clasificacion.map(_normalizar_clave_clasificacion)
+    df["clasificacion_empresa"] = (
+        claves.map(MAP_CLASIFICACION_EMPRESA)
+        .fillna(clasificacion)
+        .mask(clasificacion.isin(["", "-"]), "No indica") #EVALUAR 1000
+    )
+
+    mype = pd.Series("No determinado", index=df.index)
+    mype.loc[df["clasificacion_empresa"].isin(VALORES_MYPE_SI)] = "S\u00ed"
+    mype.loc[df["clasificacion_empresa"].isin(VALORES_MYPE_NO)] = "No"
+    df["MYPE"] = mype
+
+    return df
+
+
+def normalizar_rubro_organizacion(df: pd.DataFrame) -> pd.DataFrame:
+    if "rubro_organizacion" not in df.columns:
+        return df
+
+    mask_con_valor = df["rubro_organizacion"].notna()
+    rubro = df.loc[mask_con_valor, "rubro_organizacion"].astype(str).str.strip()
+    df.loc[mask_con_valor, "rubro_organizacion"] = rubro.replace(MAP_RUBRO_ORGANIZACION)
 
     return df
 
@@ -273,7 +312,8 @@ def limpiar_campos_generales(df: pd.DataFrame) -> pd.DataFrame:
     df = normalizar_nivel_certificacion(df)
     df = normalizar_clasificacion_empresa(df)
     df = completar_nulos(df, ["rnp"], "No indica")
-    df = completar_nulos(df, ["rubro_org"], "-")
+    df = completar_nulos(df, ["rubro_organizacion"], "-")
+    df = normalizar_rubro_organizacion(df)
 
     return df
 
@@ -305,6 +345,7 @@ def eliminar_columnas_exportacion(df: pd.DataFrame) -> pd.DataFrame:
         "rnp",
         "perfil",
         "clasificacion_empresa",
+        "MYPE",
         "rubro_organizacion",
         "nivel_gobierno",
         "tipo_entidad",
