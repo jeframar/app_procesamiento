@@ -40,6 +40,10 @@ from app_procesamiento.core.entidades import (
     registrar_pendientes_en_sheets,
     validar_ruc_para_match,
 )
+from app_procesamiento.core.errores_match_no import (
+    AnalisisErroresMatchNo,
+    analizar_errores_match_no,
+)
 from app_procesamiento.core.google_sheets import (
     SCOPES,
     extract_spreadsheet_id,
@@ -270,13 +274,16 @@ def finalizar_calificaciones(uploaded_file, cfg: dict):
     df, matches_ruc = aplicar_match_por_ruc(df, bd, reset_match=True)
     df, matches_nombre = aplicar_match_por_nombre(df, bd)
     df = normalizar_columnas_por_situacion_laboral(df)
+    analisis_errores = analizar_errores_match_no(df)
 
-    return df, {
+    metricas = {
         "Registros cargados": registros_cargados,
         "Registros procesados": len(df),
         "Matches por RUC": matches_ruc,
         "Matches por nombre": matches_nombre,
+        "Errores match_entidad = NO": analisis_errores.total_casos,
     }
+    return df, metricas, analisis_errores
 
 
 def procesar_microlearning(actividades_file, dataset_file, examen_entrada_file, examen_final_file):
@@ -406,6 +413,20 @@ def mostrar_mensajes_procesamiento(mensajes: str) -> None:
 
     with st.expander("Mensajes del procesamiento", expanded=bool(incidentes)):
         st.text("\n".join(lineas))
+
+
+def mostrar_errores_match_no(analisis: AnalisisErroresMatchNo) -> None:
+    if not analisis.hay_errores:
+        return
+
+    lineas = [
+        f"Errores de consistencia en match_entidad = NO: {analisis.total_casos} caso(s).",
+        "",
+        *analisis.lineas_detalle(),
+        "",
+        "Se sugiere revisar cuidadosamente estos casos antes de usar el dataset final.",
+    ]
+    st.error("\n".join(lineas))
 
 
 def mensaje_error_usuario(error: Exception) -> str:
@@ -826,8 +847,12 @@ with tab_finalizar:
     if clic_finalizar:
         try:
             with st.spinner("Procesando..."):
-                df_final, metricas = finalizar_calificaciones(archivo_limpiado, cfg)
+                df_final, metricas, analisis_errores = finalizar_calificaciones(
+                    archivo_limpiado,
+                    cfg,
+                )
             st.success("Dataset consolidado correctamente.")
+            mostrar_errores_match_no(analisis_errores)
             mostrar_metricas(metricas)
             descargar_excel(df_final, "dataset_final.xlsx", "Descargar dataset_final.xlsx")
         except Exception as error:

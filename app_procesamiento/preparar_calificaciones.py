@@ -15,6 +15,10 @@ from app_procesamiento.core.entidades import (
     registrar_pendientes_en_sheets,
     validar_ruc_para_match,
 )
+from app_procesamiento.core.errores_match_no import (
+    analizar_errores_match_no,
+    imprimir_analisis_errores_match_no,
+)
 from app_procesamiento.core.google_sheets import build_sheets_service, extract_spreadsheet_id
 from app_procesamiento.core.limpieza_laboral import (
     aplicar_correcciones_post_match,
@@ -148,11 +152,13 @@ def ejecutar_finalizacion(args) -> Path:
     print("\nNormalizando columnas por situacion_laboral...")
     df = normalizar_columnas_por_situacion_laboral(df)
     df = aplicar_reglas_finales(df)
+    analisis_errores = analizar_errores_match_no(df)
 
     df.to_excel(ruta_output, index=False)
 
     print(f"\nRegistros procesados: {len(df)}")
     print(f"Archivo guardado en: {ruta_output}")
+    imprimir_analisis_errores_match_no(analisis_errores)
     return ruta_output
 
 
