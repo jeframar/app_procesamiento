@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import pandas as pd
 
+from app_procesamiento.core.mapeos import MAP_TIPO_ENTIDAD
+
 
 VALORES_BASURA = ["-", "--", "5"]
+TIPOS_ENTIDAD_PRIVADA = {"Entidad privada", *MAP_TIPO_ENTIDAD.keys()}
 
 NORMALIZACION_NOMBRE_ENTIDAD = {
     "electro sur este": "ELECTRO SUR ESTE S.A.A.",
@@ -116,7 +119,7 @@ def aplicar_reglas_limpieza_inicial(
     mask_7 = (
         es_vacio(df["ruc"])
         & es_vacio(df["nombre_entidad"])
-        & tipo(df).isin(["Empresa u organización privada", "Entidad privada"])
+        & tipo(df).isin(TIPOS_ENTIDAD_PRIVADA)
         & ~sit(df).isin(["Trabajador del sector público", "No labora actualmente"])
     )
     df.loc[mask_7, "tipo_entidad"] = "Independiente y otros"
@@ -177,12 +180,7 @@ def aplicar_reglas_limpieza_inicial(
     df.loc[mask_14, "situacion_laboral"] = "No labora actualmente"
     df.loc[mask_14, "tipo_entidad"] = "No labora actualmente"
 
-    df["tipo_entidad"] = df["tipo_entidad"].replace(
-        {
-            "Empresa u organización privada": "Entidad privada",
-            "Empresa u organizaciÃ³n privada": "Entidad privada",
-        }
-    )
+    df["tipo_entidad"] = df["tipo_entidad"].replace(MAP_TIPO_ENTIDAD)
 
     mask_16 = (
         es_vacio(df["ruc"])
@@ -276,6 +274,7 @@ def normalizar_columnas_por_situacion_laboral(df: pd.DataFrame) -> pd.DataFrame:
         ["situacion_laboral", "tipo_entidad", "ruc", "nombre_entidad", "nivel_gobierno"],
     )
     nc = "No corresponde"
+    perfil_profesional_independiente = "PROFESIONAL INDEPENDIENTE"
 
     mask_dep_pub = (sit(df) == "Trabajador dependiente") & (tipo(df) == "Entidad pública")
     for col in [
@@ -289,6 +288,19 @@ def normalizar_columnas_por_situacion_laboral(df: pd.DataFrame) -> pd.DataFrame:
         "otros_ambito",
     ]:
         asignar_texto(df, mask_dep_pub, col, nc)
+
+    if "perfil" in df.columns:
+        perfil_texto = df["perfil"].fillna("").astype(str).str.strip()
+        mask_dep_pub_perfil_independiente = mask_dep_pub & (
+            (perfil_texto == "")
+            | perfil_texto.str.lower().isin(["nan", "none", "otro", "otros","ciudadano"]) # Agregar aquí
+        )
+        asignar_texto(
+            df,
+            mask_dep_pub_perfil_independiente,
+            "perfil",
+            perfil_profesional_independiente,
+        )
 
     mask_dep_pub_indep = (
         mask_dep_pub
@@ -316,8 +328,8 @@ def normalizar_columnas_por_situacion_laboral(df: pd.DataFrame) -> pd.DataFrame:
     mask_ind = sit(df) == "Trabajador independiente"
     asignar_texto(df, mask_ind, "nivel_gobierno", "-")
     asignar_texto(df, mask_ind, "nombre_entidad", "INDEPENDIENTE Y OTROS")
+    asignar_texto(df, mask_ind, "perfil", perfil_profesional_independiente)
     for col in [
-        "perfil",
         "regimen_laboral",
         "nombre_jefe_rrhh",
         "correo_jefe_rrhh",

@@ -38,16 +38,18 @@ MAP_PERFIL = {
     # "Inspector de obras": "PROVEEDOR",
     # "Proveedor del Estado": "PROVEEDOR",
     # "Docencia en contrataciones públicas": "PROFESIONAL INDEPENDIENTE",
-    # "Público en general": "PROFESIONAL INDEPENDIENTE",
-    # "Ciudadano": "PROFESIONAL INDEPENDIENTE",
-    # "Otros": "PROFESIONAL INDEPENDIENTE",
-    # "Otro": "PROFESIONAL INDEPENDIENTE",
-    # "": "PROFESIONAL INDEPENDIENTE",
+    # "Público en general": "PROFESIONAL INDEPENDIENTE"
 }
 
 
 MAP_RUBRO_ORGANIZACION = {
     "-": "No corresponde",
+}
+
+
+MAP_TIPO_ENTIDAD = {
+    "Empresa u organización privada": "Entidad privada",
+    "Empresa u organizaciÃ³n privada": "Entidad privada",
 }
 
 
