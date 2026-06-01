@@ -19,31 +19,15 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from app_procesamiento import config
-from app_procesamiento.core.certificados import (
-    agregar_certificado_por_total,
-    calcular_condicion_y_constancia,
-)
-from app_procesamiento.core.columnas import (
-    convertir_columnas_calificacion,
-    eliminar_columnas_actividad,
-    mover_columna_despues_de_otra,
-    ordenar_bloque_calificaciones,
-    ordenar_columnas_intermedias,
-    ordenar_por_calificaciones,
-)
 from app_procesamiento.core.diagnosticos import imprimir_diagnostico_duplicados_dni
 from app_procesamiento.core.entidades import (
-    aplicar_match_por_nombre,
-    aplicar_match_por_ruc,
     cargar_bd_entidades,
     cargar_etiquetas_entidad,
-    registrar_pendientes_en_sheets,
-    validar_ruc_para_match,
 )
 from app_procesamiento.core.errores_match_no import (
     AnalisisErroresMatchNo,
-    analizar_errores_match_no,
 )
+from app_procesamiento.core.finalizacion_calificaciones import finalizar_dataset_calificaciones
 from app_procesamiento.core.google_sheets import (
     SCOPES,
     extract_spreadsheet_id,
@@ -54,17 +38,11 @@ from app_procesamiento.core.lectores import (
     leer_examen,
     leer_examen_final,
 )
-from app_procesamiento.core.limpieza_laboral import (
-    aplicar_correcciones_post_match,
-    aplicar_reglas_limpieza_inicial,
-    normalizar_columnas_por_situacion_laboral,
-)
-from app_procesamiento.core.transformaciones import (
-    eliminar_columnas_basura,
-    eliminar_columnas_exportacion,
-    limpiar_campos_generales,
-    merge_por_dni_o_nombre,
-    unir_fuentes,
+from app_procesamiento.core.limpieza_calificaciones import limpiar_dataset_calificaciones
+from app_procesamiento.core.procesamiento_actividades import (
+    procesar_microlearning_dataset,
+    procesar_mooc_dataset,
+    procesar_videoconferencia_dataset,
 )
 
 
@@ -241,14 +219,14 @@ def limpiar_calificaciones(uploaded_file, registrar_pendientes: bool, cfg: dict)
     df = leer_excel(uploaded_file)
     registros_cargados = len(df)
 
-    df, nombres_normalizados = aplicar_reglas_limpieza_inicial(df, etiquetas)
-    df = validar_ruc_para_match(df)
-    df, matches_ruc = aplicar_match_por_ruc(df, bd, reset_match=True)
-    df, matches_nombre = aplicar_match_por_nombre(df, bd)
-    df = aplicar_correcciones_post_match(df)
-
-    if registrar_pendientes:
-        registrar_pendientes_en_sheets(service, spreadsheet_id, df)
+    df, nombres_normalizados, matches_ruc, matches_nombre = limpiar_dataset_calificaciones(
+        df,
+        bd,
+        etiquetas,
+        registrar_pendientes=registrar_pendientes,
+        service=service,
+        spreadsheet_id=spreadsheet_id,
+    )
 
     return df, {
         "Registros cargados": registros_cargados,
@@ -270,11 +248,10 @@ def finalizar_calificaciones(uploaded_file, cfg: dict):
     df = leer_excel(uploaded_file)
     registros_cargados = len(df)
 
-    df = validar_ruc_para_match(df)
-    df, matches_ruc = aplicar_match_por_ruc(df, bd, reset_match=True)
-    df, matches_nombre = aplicar_match_por_nombre(df, bd)
-    df = normalizar_columnas_por_situacion_laboral(df)
-    analisis_errores = analizar_errores_match_no(df)
+    df, matches_ruc, matches_nombre, analisis_errores = finalizar_dataset_calificaciones(
+        df,
+        bd,
+    )
 
     metricas = {
         "Registros cargados": registros_cargados,
@@ -294,35 +271,18 @@ def procesar_microlearning(actividades_file, dataset_file, examen_entrada_file, 
         examen_final_file,
     )
 
-    actividades = leer_actividades_upload(actividades_file)
-    calificados = leer_calificados_upload(dataset_file)
-    df = unir_fuentes(calificados, actividades)
-
-    if examen_entrada_file is not None:
-        df = merge_por_dni_o_nombre(
-            df,
-            leer_examen_upload(examen_entrada_file),
-            "examen entrada",
-        )
-
-    if examen_final_file is not None:
-        df = merge_por_dni_o_nombre(
-            df,
-            leer_examen_final_upload(examen_final_file),
-            "examen final",
-            suffixes=("", "_final"),
-        )
-
-    df = eliminar_columnas_actividad(df, "microlearning")
-    df = eliminar_columnas_basura(df)
-    df = limpiar_campos_generales(df)
-    df = convertir_columnas_calificacion(df)
-    df = ordenar_bloque_calificaciones(df)
-    df = ordenar_columnas_intermedias(df)
-    df = mover_columna_despues_de_otra(df, "clasificacion_empresa", "perfil")
-    df = ordenar_por_calificaciones(df)
-    df = agregar_certificado_por_total(df, crear_si_no_hay_total=False)
-    return eliminar_columnas_exportacion(df)
+    examen_entrada = (
+        leer_examen_upload(examen_entrada_file) if examen_entrada_file is not None else None
+    )
+    examen_final = (
+        leer_examen_final_upload(examen_final_file) if examen_final_file is not None else None
+    )
+    return procesar_microlearning_dataset(
+        leer_actividades_upload(actividades_file),
+        leer_calificados_upload(dataset_file),
+        examen_entrada,
+        examen_final,
+    )
 
 
 def procesar_mooc(actividades_file, dataset_file, examen_entrada_file, examen_final_file):
@@ -333,34 +293,15 @@ def procesar_mooc(actividades_file, dataset_file, examen_entrada_file, examen_fi
         examen_final_file,
     )
 
-    actividades = leer_actividades_upload(actividades_file)
-    calificados = leer_calificados_upload(dataset_file)
-    df = unir_fuentes(calificados, actividades)
-
-    if examen_entrada_file is not None:
-        df = merge_por_dni_o_nombre(
-            df,
-            leer_examen_upload(examen_entrada_file),
-            "examen entrada",
-        )
-
-    df = merge_por_dni_o_nombre(
-        df,
-        leer_examen_final_upload(examen_final_file),
-        "examen final",
-        suffixes=("", "_final"),
+    examen_entrada = (
+        leer_examen_upload(examen_entrada_file) if examen_entrada_file is not None else None
     )
-
-    df = eliminar_columnas_actividad(df, "mooc")
-    df = eliminar_columnas_basura(df)
-    df = limpiar_campos_generales(df)
-    df = convertir_columnas_calificacion(df)
-    df = mover_columna_despues_de_otra(df, "clasificacion_empresa", "perfil")
-    df = mover_columna_despues_de_otra(df, "total_curso", "Calificación/20,00_final")
-    df = ordenar_bloque_calificaciones(df)
-    df = ordenar_por_calificaciones(df)
-    df = agregar_certificado_por_total(df, crear_si_no_hay_total=True)
-    return eliminar_columnas_exportacion(df)
+    return procesar_mooc_dataset(
+        leer_actividades_upload(actividades_file),
+        leer_calificados_upload(dataset_file),
+        examen_entrada,
+        leer_examen_final_upload(examen_final_file),
+    )
 
 
 def procesar_videoconferencia(actividades_file, dataset_file):
@@ -369,20 +310,10 @@ def procesar_videoconferencia(actividades_file, dataset_file):
         dataset_file,
     )
 
-    actividades = leer_actividades_upload(actividades_file)
-    calificados = leer_calificados_upload(dataset_file)
-
-    df = unir_fuentes(calificados, actividades)
-    df = eliminar_columnas_actividad(df, "videoconferencia")
-    df = eliminar_columnas_basura(df)
-    df = limpiar_campos_generales(df)
-    df = calcular_condicion_y_constancia(df)
-    df = mover_columna_despues_de_otra(df, "clasificacion_empresa", "perfil")
-
-    if {"condicion", "certificado"}.issubset(df.columns):
-        df = df.sort_values(by=["condicion", "certificado"], ascending=[True, True])
-
-    return eliminar_columnas_exportacion(df)
+    return procesar_videoconferencia_dataset(
+        leer_actividades_upload(actividades_file),
+        leer_calificados_upload(dataset_file),
+    )
 
 
 def mostrar_metricas(metricas: dict) -> None:

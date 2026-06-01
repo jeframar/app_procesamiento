@@ -1,13 +1,5 @@
 from pathlib import Path
 
-from app_procesamiento.core.certificados import agregar_certificado_por_total
-from app_procesamiento.core.columnas import (
-    convertir_columnas_calificacion,
-    eliminar_columnas_actividad,
-    mover_columna_despues_de_otra,
-    ordenar_bloque_calificaciones,
-    ordenar_por_calificaciones,
-)
 from app_procesamiento.core.diagnosticos import imprimir_diagnostico_duplicados_dni
 from app_procesamiento.core.dialogos import (
     seleccionar_archivo,
@@ -20,13 +12,7 @@ from app_procesamiento.core.lectores import (
     leer_examen,
     leer_examen_final,
 )
-from app_procesamiento.core.transformaciones import (
-    eliminar_columnas_basura,
-    eliminar_columnas_exportacion,
-    limpiar_campos_generales,
-    merge_por_dni_o_nombre,
-    unir_fuentes,
-)
+from app_procesamiento.core.procesamiento_actividades import procesar_mooc_dataset
 
 
 def procesar() -> Path:
@@ -66,28 +52,12 @@ def procesar() -> Path:
     examen_final = leer_examen_final(ruta_examen_final)
 
     print("Procesando datos...\n")
-    df = unir_fuentes(calificados, actividades)
-
-    if examen_entrada is not None:
-        df = merge_por_dni_o_nombre(df, examen_entrada, "examen entrada")
-
-    df = merge_por_dni_o_nombre(
-        df,
+    df = procesar_mooc_dataset(
+        actividades,
+        calificados,
+        examen_entrada,
         examen_final,
-        "examen final",
-        suffixes=("", "_final"),
     )
-
-    df = eliminar_columnas_actividad(df, "mooc")
-    df = eliminar_columnas_basura(df)
-    df = limpiar_campos_generales(df)
-    df = convertir_columnas_calificacion(df)
-    df = mover_columna_despues_de_otra(df, "clasificacion_empresa", "perfil")
-    df = mover_columna_despues_de_otra(df, "total_curso", "Calificación/20,00_final")
-    df = ordenar_bloque_calificaciones(df)
-    df = ordenar_por_calificaciones(df)
-    df = agregar_certificado_por_total(df, crear_si_no_hay_total=True)
-    df = eliminar_columnas_exportacion(df)
 
     print("Guardando archivo...\n")
     df.to_excel(ruta_salida, index=False)

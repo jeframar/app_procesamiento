@@ -1,19 +1,9 @@
 from pathlib import Path
 
-from app_procesamiento.core.certificados import calcular_condicion_y_constancia
-from app_procesamiento.core.columnas import (
-    eliminar_columnas_actividad,
-    mover_columna_despues_de_otra,
-)
 from app_procesamiento.core.diagnosticos import imprimir_diagnostico_duplicados_dni
 from app_procesamiento.core.dialogos import seleccionar_archivo, seleccionar_carpeta
 from app_procesamiento.core.lectores import leer_actividades, leer_calificados
-from app_procesamiento.core.transformaciones import (
-    eliminar_columnas_basura,
-    eliminar_columnas_exportacion,
-    limpiar_campos_generales,
-    unir_fuentes,
-)
+from app_procesamiento.core.procesamiento_actividades import procesar_videoconferencia_dataset
 
 
 def procesar() -> Path:
@@ -41,17 +31,7 @@ def procesar() -> Path:
     calificados = leer_calificados(ruta_calificacion)
 
     print("Procesando datos...\n")
-    df = unir_fuentes(calificados, actividades)
-    df = eliminar_columnas_actividad(df, "videoconferencia")
-    df = eliminar_columnas_basura(df)
-    df = limpiar_campos_generales(df)
-    df = calcular_condicion_y_constancia(df)
-    df = mover_columna_despues_de_otra(df, "clasificacion_empresa", "perfil")
-
-    if {"condicion", "certificado"}.issubset(df.columns):
-        df = df.sort_values(by=["condicion", "certificado"], ascending=[True, True])
-
-    df = eliminar_columnas_exportacion(df)
+    df = procesar_videoconferencia_dataset(actividades, calificados)
 
     print("Guardando archivo...\n")
     df.to_excel(ruta_salida, index=False)
