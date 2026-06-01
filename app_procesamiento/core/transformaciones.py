@@ -11,6 +11,10 @@ from app_procesamiento.core.mapeos import (
     VALORES_MYPE_NO,
     VALORES_MYPE_SI,
 )
+from app_procesamiento.core.limpieza_laboral import (
+    normalizar_columna_rnp,
+    normalizar_perfil_independiente_por_rnp,
+)
 from app_procesamiento.core.utils import (
     completar_nulos,
     formatear_fecha,
@@ -262,6 +266,8 @@ def normalizar_rubro_organizacion(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def normalizar_carrera_tecnica(df: pd.DataFrame) -> pd.DataFrame:
+    df = normalizar_columna_rnp(df)
+
     if "grado_instruccion" not in df.columns:
         return df
 
@@ -288,6 +294,8 @@ def normalizar_carrera_tecnica(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def limpiar_campos_generales(df: pd.DataFrame) -> pd.DataFrame:
+    df = normalizar_columna_rnp(df)
+
     if "fecha_nacimiento" in df.columns:
         df["fecha_nacimiento"] = formatear_fecha(df["fecha_nacimiento"])
 
@@ -312,6 +320,7 @@ def limpiar_campos_generales(df: pd.DataFrame) -> pd.DataFrame:
     df = normalizar_nivel_certificacion(df)
     df = normalizar_clasificacion_empresa(df)
     df = completar_nulos(df, ["rnp"], "No indica")
+    df = normalizar_perfil_independiente_por_rnp(df)
     df = completar_nulos(df, ["rubro_organizacion"], "-")
     df = normalizar_rubro_organizacion(df)
 

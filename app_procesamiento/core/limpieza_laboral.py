@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import unicodedata
+
 import pandas as pd
 
 from app_procesamiento.core.mapeos import MAP_TIPO_ENTIDAD
@@ -49,6 +51,68 @@ def asignar_texto(df: pd.DataFrame, mask: pd.Series, columna: str, valor: str) -
 
     df[columna] = df[columna].astype("object")
     df.loc[mask, columna] = valor
+
+
+def normalizar_columna_rnp(df: pd.DataFrame) -> pd.DataFrame:
+    columnas_rnp = [columna for columna in df.columns if str(columna).strip().lower() == "rnp"]
+    if not columnas_rnp:
+        return df
+
+    if "rnp" not in df.columns:
+        return df.rename(columns={columnas_rnp[0]: "rnp"})
+
+    for columna in columnas_rnp:
+        if columna == "rnp":
+            continue
+        df["rnp"] = df["rnp"].where(~es_vacio(df["rnp"]), df[columna])
+        df = df.drop(columns=[columna])
+
+    return df
+
+
+def _normalizar_texto_rnp(valor) -> str:
+    if pd.isna(valor):
+        return "no indica"
+
+    texto = str(valor).strip().lower()
+    if texto in ["", "nan", "none"]:
+        return "no indica"
+
+    texto = texto.replace("sã­", "si")
+    texto = unicodedata.normalize("NFKD", texto)
+    texto = "".join(
+        caracter
+        for caracter in texto
+        if not unicodedata.combining(caracter) and caracter != "\u00ad"
+    )
+    return texto
+
+
+def rnp_normalizado(df: pd.DataFrame) -> pd.Series:
+    df = normalizar_columna_rnp(df)
+    if "rnp" not in df.columns:
+        return pd.Series("no indica", index=df.index)
+
+    return df["rnp"].map(_normalizar_texto_rnp)
+
+
+def normalizar_perfil_independiente_por_rnp(df: pd.DataFrame) -> pd.DataFrame:
+    df = normalizar_columna_rnp(df)
+
+    if not {"situacion_laboral", "tipo_entidad", "perfil"}.issubset(df.columns):
+        return df
+
+    mask_ind = sit(df) == "Trabajador independiente"
+    rnp = rnp_normalizado(df)
+
+    asignar_texto(
+        df,
+        mask_ind & rnp.isin(["no", "no indica"]),
+        "perfil",
+        "PROFESIONAL INDEPENDIENTE",
+    )
+    asignar_texto(df, mask_ind & (rnp == "si"), "perfil", "PROVEEDOR")
+    return df
 
 
 def normalizar_nombre_entidad(
@@ -269,13 +333,13 @@ def aplicar_correcciones_post_match(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def normalizar_columnas_por_situacion_laboral(df: pd.DataFrame) -> pd.DataFrame:
+    df = normalizar_columna_rnp(df)
     df = asegurar_columnas(
         df,
         ["situacion_laboral", "tipo_entidad", "ruc", "nombre_entidad", "nivel_gobierno"],
     )
     nc = "No corresponde"
     perfil_profesional_independiente = "PROFESIONAL INDEPENDIENTE"
-    perfil_proveedor = "PROVEEDOR"
 
     mask_dep_pub = (sit(df) == "Trabajador dependiente") & (tipo(df) == "Entidad pública")
     for col in [
@@ -294,7 +358,7 @@ def normalizar_columnas_por_situacion_laboral(df: pd.DataFrame) -> pd.DataFrame:
         perfil_texto = df["perfil"].fillna("").astype(str).str.strip()
         mask_dep_pub_perfil_independiente = mask_dep_pub & (
             (perfil_texto == "")
-            | perfil_texto.str.lower().isin(["nan", "none", "otro", "otros","ciudadano"]) # Agregar aquí
+            | perfil_texto.str.lower().isin(["nan", "none", "otro", "otros","ciudadano", "público en general"]) # Agregar aquí
         )
         asignar_texto(
             df,
@@ -329,19 +393,7 @@ def normalizar_columnas_por_situacion_laboral(df: pd.DataFrame) -> pd.DataFrame:
     mask_ind = sit(df) == "Trabajador independiente"
     asignar_texto(df, mask_ind, "nivel_gobierno", "-")
     asignar_texto(df, mask_ind, "nombre_entidad", "INDEPENDIENTE Y OTROS")
-    if "rnp" in df.columns:
-        rnp = df["rnp"].fillna("No indica").astype(str).str.strip().str.lower()
-        rnp = rnp.replace({"": "no indica", "nan": "no indica", "none": "no indica"})
-    else:
-        rnp = pd.Series("no indica", index=df.index)
-
-    asignar_texto(
-        df,
-        mask_ind & rnp.isin(["no", "no indica"]),
-        "perfil",
-        perfil_profesional_independiente,
-    )
-    asignar_texto(df, mask_ind & rnp.isin(["si", "sí"]), "perfil", perfil_proveedor)
+    df = normalizar_perfil_independiente_por_rnp(df)
     for col in [
         "regimen_laboral",
         "nombre_jefe_rrhh",
