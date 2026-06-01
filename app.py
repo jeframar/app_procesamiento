@@ -718,7 +718,7 @@ cfg = sidebar_state["cfg"]
 registrar_pendientes = sidebar_state["registrar_pendientes"]
 
 tab_limpiar, tab_finalizar, tab_procesar = st.tabs(
-    ["Limpiar calificaciones", "Finalizar dataset", "Procesar actividad"]
+    ["Limpiar calificaciones", "Finalizar limpieza", "Procesar actividad"]
 )
 
 with tab_limpiar:
@@ -759,7 +759,7 @@ with tab_limpiar:
 
 with tab_finalizar:
     render_card_open(
-        "Finalizar dataset",
+        "Finalizar limpieza",
         "Carga el archivo depurado para consolidarlo con la información configurada en Google Sheets.",
     )
 
@@ -770,7 +770,7 @@ with tab_finalizar:
     )
 
     clic_finalizar = render_action_button_right(
-        "Finalizar dataset",
+        "Finalizar limpieza",
         key="btn_finalizar",
         disabled=archivo_limpiado is None,
     )

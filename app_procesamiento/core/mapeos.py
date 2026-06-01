@@ -36,7 +36,7 @@ MAP_PERFIL = {
     # "Supervisor de Obras": "PROVEEDOR",
     # "Supervisión de Obras": "PROVEEDOR",
     # "Inspector de obras": "PROVEEDOR",
-    # "Proveedor del Estado": "PROVEEDOR",
+    "Proveedor del Estado": "AU", # Anteriormente se cambiaba a PROVEEDOR, pero esa opción no está habilitada para Entidad pública
     # "Docencia en contrataciones públicas": "PROFESIONAL INDEPENDIENTE",
     # "Público en general": "PROFESIONAL INDEPENDIENTE"
 }
