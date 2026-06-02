@@ -15,6 +15,7 @@ from app_procesamiento.core.limpieza_laboral import (
     normalizar_columna_rnp,
     normalizar_perfil_entidad_publica_por_rnp,
     normalizar_perfil_independiente_por_rnp,
+    normalizar_perfil_proveedor_por_tipo_entidad_rnp,
 )
 from app_procesamiento.core.utils import (
     completar_nulos,
@@ -323,6 +324,7 @@ def limpiar_campos_generales(df: pd.DataFrame) -> pd.DataFrame:
     df = completar_nulos(df, ["rnp"], "No indica")
     df = normalizar_perfil_entidad_publica_por_rnp(df)
     df = normalizar_perfil_independiente_por_rnp(df)
+    df = normalizar_perfil_proveedor_por_tipo_entidad_rnp(df)
     df = completar_nulos(df, ["rubro_organizacion"], "-")
     df = normalizar_rubro_organizacion(df)
 

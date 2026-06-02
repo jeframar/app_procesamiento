@@ -144,6 +144,18 @@ def normalizar_perfil_entidad_publica_por_rnp(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def normalizar_perfil_proveedor_por_tipo_entidad_rnp(df: pd.DataFrame) -> pd.DataFrame:
+    df = normalizar_columna_rnp(df)
+
+    if not {"tipo_entidad", "perfil"}.issubset(df.columns):
+        return df
+
+    mask_proveedor = tipo(df).isin(["No labora actualmente", "Entidad privada"])
+    rnp = rnp_normalizado(df)
+    asignar_texto(df, mask_proveedor & (rnp == "si"), "perfil", "PROVEEDOR")
+    return df
+
+
 def normalizar_nombre_entidad(
     df: pd.DataFrame,
     normalizacion_extra: dict[str, str] | None = None,
@@ -444,5 +456,7 @@ def normalizar_columnas_por_situacion_laboral(df: pd.DataFrame) -> pd.DataFrame:
     ]:
         asignar_texto(df, mask_no_lab, col, nc)
     asignar_texto(df, mask_no_lab, "tipo_entidad", "No labora actualmente") # Podría reducirse y hacer menos procesamiento con casos específicos
+
+    df = normalizar_perfil_proveedor_por_tipo_entidad_rnp(df)
 
     return df

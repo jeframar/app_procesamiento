@@ -126,8 +126,9 @@ corresponde a la pestana `Finalizar limpieza`; en CLI corresponde al modo
      `tipo_entidad = "No labora actualmente"`.
 7. `core.limpieza_laboral::normalizar_perfil_entidad_publica_por_rnp(df)`
 8. `core.limpieza_laboral::normalizar_perfil_independiente_por_rnp(df)`
-9. `core.finalizacion_calificaciones::aplicar_reglas_finales(df)`
-10. `core.errores_match_no::analizar_errores_match_no(df)`
+9. `core.limpieza_laboral::normalizar_perfil_proveedor_por_tipo_entidad_rnp(df)`
+10. `core.finalizacion_calificaciones::aplicar_reglas_finales(df)`
+11. `core.errores_match_no::analizar_errores_match_no(df)`
 
 ### Reglas importantes de perfil por RNP
 
@@ -146,6 +147,13 @@ La normalizacion de perfil para independientes esta en
 |---|---|
 | `situacion_laboral == "Trabajador independiente"` y `rnp` es `No` o `No indica` | `PROFESIONAL INDEPENDIENTE` |
 | `situacion_laboral == "Trabajador independiente"` y `rnp` es `Si` | `PROVEEDOR` |
+
+La normalizacion de perfil proveedor por tipo de entidad esta en
+`core.limpieza_laboral::normalizar_perfil_proveedor_por_tipo_entidad_rnp`:
+
+| Condicion | Perfil asignado |
+|---|---|
+| `tipo_entidad` es `Entidad privada` o `No labora actualmente`, y `rnp` es `Si` | `PROVEEDOR` |
 
 ### Resultado
 
@@ -202,7 +210,8 @@ Las tres ramas usan estas funciones base:
 9. `normalizar_clasificacion_empresa`
 10. `normalizar_perfil_entidad_publica_por_rnp`
 11. `normalizar_perfil_independiente_por_rnp`
-12. `normalizar_rubro_organizacion`
+12. `normalizar_perfil_proveedor_por_tipo_entidad_rnp`
+13. `normalizar_rubro_organizacion`
 
 ### Rama Videoconferencia
 
@@ -280,9 +289,10 @@ flowchart TD
         F4["normalizar_columnas_por_situacion_laboral"]
         F5["normalizar_perfil_entidad_publica_por_rnp"]
         F6["normalizar_perfil_independiente_por_rnp"]
-        F7["aplicar_reglas_finales"]
-        F8["analizar_errores_match_no"]
-        F0 --> F1 --> F2 --> F3 --> F4 --> F5 --> F6 --> F7 --> F8
+        F7["normalizar_perfil_proveedor_por_tipo_entidad_rnp"]
+        F8["aplicar_reglas_finales"]
+        F9["analizar_errores_match_no"]
+        F0 --> F1 --> F2 --> F3 --> F4 --> F5 --> F6 --> F7 --> F8 --> F9
     end
 
     subgraph ACT["3. Procesar actividad"]
