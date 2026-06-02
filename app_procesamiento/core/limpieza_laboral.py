@@ -96,6 +96,16 @@ def rnp_normalizado(df: pd.DataFrame) -> pd.Series:
     return df["rnp"].map(_normalizar_texto_rnp)
 
 
+def perfil_generico(df: pd.DataFrame) -> pd.Series:
+    if "perfil" not in df.columns:
+        return pd.Series(False, index=df.index)
+
+    perfil_texto = df["perfil"].fillna("").astype(str).str.strip()
+    return (perfil_texto == "") | perfil_texto.str.lower().isin(
+        ["nan", "none", "otro", "otros", "ciudadano", "público en general"]
+    )
+
+
 def normalizar_perfil_independiente_por_rnp(df: pd.DataFrame) -> pd.DataFrame:
     df = normalizar_columna_rnp(df)
 
@@ -112,6 +122,25 @@ def normalizar_perfil_independiente_por_rnp(df: pd.DataFrame) -> pd.DataFrame:
         "PROFESIONAL INDEPENDIENTE",
     )
     asignar_texto(df, mask_ind & (rnp == "si"), "perfil", "PROVEEDOR")
+    return df
+
+
+def normalizar_perfil_entidad_publica_por_rnp(df: pd.DataFrame) -> pd.DataFrame:
+    df = normalizar_columna_rnp(df)
+
+    if not {"tipo_entidad", "perfil"}.issubset(df.columns):
+        return df
+
+    mask_pub = (tipo(df) == "Entidad pública") & perfil_generico(df)
+    rnp = rnp_normalizado(df)
+
+    asignar_texto(
+        df,
+        mask_pub & rnp.isin(["no", "no indica"]),
+        "perfil",
+        "PROFESIONAL INDEPENDIENTE",
+    )
+    asignar_texto(df, mask_pub & (rnp == "si"), "perfil", "PROVEEDOR")
     return df
 
 
@@ -339,7 +368,6 @@ def normalizar_columnas_por_situacion_laboral(df: pd.DataFrame) -> pd.DataFrame:
         ["situacion_laboral", "tipo_entidad", "ruc", "nombre_entidad", "nivel_gobierno"],
     )
     nc = "No corresponde"
-    perfil_profesional_independiente = "PROFESIONAL INDEPENDIENTE"
 
     mask_dep_pub = (sit(df) == "Trabajador dependiente") & (tipo(df) == "Entidad pública")
     for col in [
@@ -354,18 +382,7 @@ def normalizar_columnas_por_situacion_laboral(df: pd.DataFrame) -> pd.DataFrame:
     ]:
         asignar_texto(df, mask_dep_pub, col, nc)
 
-    if "perfil" in df.columns:
-        perfil_texto = df["perfil"].fillna("").astype(str).str.strip()
-        mask_dep_pub_perfil_independiente = mask_dep_pub & (
-            (perfil_texto == "")
-            | perfil_texto.str.lower().isin(["nan", "none", "otro", "otros","ciudadano", "público en general"]) # Agregar aquí
-        )
-        asignar_texto(
-            df,
-            mask_dep_pub_perfil_independiente,
-            "perfil",
-            perfil_profesional_independiente,
-        )
+    df = normalizar_perfil_entidad_publica_por_rnp(df)
 
     mask_dep_pub_indep = (
         mask_dep_pub

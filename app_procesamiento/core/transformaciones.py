@@ -13,6 +13,7 @@ from app_procesamiento.core.mapeos import (
 )
 from app_procesamiento.core.limpieza_laboral import (
     normalizar_columna_rnp,
+    normalizar_perfil_entidad_publica_por_rnp,
     normalizar_perfil_independiente_por_rnp,
 )
 from app_procesamiento.core.utils import (
@@ -320,6 +321,7 @@ def limpiar_campos_generales(df: pd.DataFrame) -> pd.DataFrame:
     df = normalizar_nivel_certificacion(df)
     df = normalizar_clasificacion_empresa(df)
     df = completar_nulos(df, ["rnp"], "No indica")
+    df = normalizar_perfil_entidad_publica_por_rnp(df)
     df = normalizar_perfil_independiente_por_rnp(df)
     df = completar_nulos(df, ["rubro_organizacion"], "-")
     df = normalizar_rubro_organizacion(df)
