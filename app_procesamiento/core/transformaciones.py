@@ -3,6 +3,7 @@ import unicodedata
 
 import pandas as pd
 
+from app_procesamiento.core.columnas import renumerar_id_por_apellidos_nombres
 from app_procesamiento.core.mapeos import (
     MAP_CLASIFICACION_EMPRESA,
     MAP_GRADO,
@@ -380,6 +381,8 @@ def eliminar_columnas_exportacion(df: pd.DataFrame) -> pd.DataFrame:
         cols.remove("Ver ficha técnica")
         cols.insert(cols.index("region") + 1, "Ver ficha técnica")
         df = df[cols]
+
+    df = renumerar_id_por_apellidos_nombres(df)
 
     return df
 

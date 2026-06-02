@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import unicodedata
+
 import pandas as pd
 
 from app_procesamiento.core.utils import convertir_a_numerico
@@ -131,4 +133,42 @@ def ordenar_por_calificaciones(df: pd.DataFrame) -> pd.DataFrame:
     if columnas_orden:
         df = df.sort_values(by=columnas_orden, ascending=[False] * len(columnas_orden))
     return df
+
+
+def _normalizar_texto_orden(valor) -> str:
+    if pd.isna(valor):
+        return ""
+
+    texto = str(valor).strip().casefold()
+    texto = unicodedata.normalize("NFKD", texto)
+    return "".join(caracter for caracter in texto if not unicodedata.combining(caracter))
+
+
+def renumerar_id_por_apellidos_nombres(df: pd.DataFrame) -> pd.DataFrame:
+    if "apellidos_nombres" not in df.columns:
+        return df
+
+    clave_nombre = df["apellidos_nombres"].map(_normalizar_texto_orden)
+    orden = (
+        pd.DataFrame(
+            {
+                "_nombre_vacio": clave_nombre.eq(""),
+                "_nombre_orden": clave_nombre,
+                "_orden_original": range(len(df)),
+            },
+            index=df.index,
+        )
+        .sort_values(
+            by=["_nombre_vacio", "_nombre_orden", "_orden_original"],
+            kind="mergesort",
+        )
+        .index
+    )
+
+    df = df.loc[orden].copy()
+    df["id"] = range(1, len(df) + 1)
+
+    columnas = list(df.columns)
+    columnas.remove("id")
+    return df[["id"] + columnas].reset_index(drop=True)
 

@@ -13,6 +13,7 @@ from app_procesamiento.core.errores_match_no import (
     AnalisisErroresMatchNo,
     analizar_errores_match_no,
 )
+from app_procesamiento.core.columnas import renumerar_id_por_apellidos_nombres
 from app_procesamiento.core.limpieza_laboral import normalizar_columnas_por_situacion_laboral
 
 
@@ -108,5 +109,6 @@ def finalizar_dataset_calificaciones(
     df = normalizar_rubro_organizacion_calificaciones(df)
     df = aplicar_reglas_finales(df)
     analisis_errores = analizar_errores_match_no(df)
+    df = renumerar_id_por_apellidos_nombres(df)
 
     return df, matches_ruc, matches_nombre, analisis_errores
