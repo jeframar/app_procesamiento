@@ -402,10 +402,10 @@ def normalizar_columnas_por_situacion_laboral(df: pd.DataFrame) -> pd.DataFrame:
         & (df["nombre_entidad"].astype(str).str.strip() == "INDEPENDIENTE Y OTROS")
         & es_vacio(df["nivel_gobierno"])
     )
-    asignar_texto(df, mask_dep_pub_indep, "nivel_gobierno", "-")
+    asignar_texto(df, mask_dep_pub_indep, "nivel_gobierno", "No indica")
 
     mask_dep_pri = (sit(df) == "Trabajador dependiente") & (tipo(df) == "Entidad privada")
-    asignar_texto(df, mask_dep_pri, "nivel_gobierno", "-")
+    asignar_texto(df, mask_dep_pri, "nivel_gobierno", "No corresponde")
     for col in [
         "perfil",
         "regimen_laboral",
@@ -420,7 +420,7 @@ def normalizar_columnas_por_situacion_laboral(df: pd.DataFrame) -> pd.DataFrame:
         asignar_texto(df, mask_dep_pri, col, nc)
 
     mask_ind = sit(df) == "Trabajador independiente"
-    asignar_texto(df, mask_ind, "nivel_gobierno", "-")
+    asignar_texto(df, mask_ind, "nivel_gobierno", "No corresponde")
     asignar_texto(df, mask_ind, "nombre_entidad", "INDEPENDIENTE Y OTROS")
     df = normalizar_perfil_independiente_por_rnp(df)
     for col in [

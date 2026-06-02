@@ -21,6 +21,37 @@ def _es_vacio(serie: pd.Series) -> pd.Series:
     return texto.isin(["", "nan", "none"])
 
 
+def _es_rubro_privado_sin_valor(serie: pd.Series) -> pd.Series:
+    texto = serie.fillna("").astype(str).str.strip().str.lower()
+    return texto.isin(["", "-", "nan", "none", "no corresponde"])
+
+
+def normalizar_rubro_organizacion_calificaciones(df: pd.DataFrame) -> pd.DataFrame:
+    if not {"situacion_laboral", "tipo_entidad", "rubro_organizacion"}.issubset(df.columns):
+        return df
+
+    situacion = df["situacion_laboral"].fillna("").astype(str).str.strip()
+    tipo_entidad = df["tipo_entidad"].fillna("").astype(str).str.strip()
+
+    mask_no_corresponde = (
+        ((situacion == "Trabajador dependiente") & (tipo_entidad == "Entidad pública"))
+        | (situacion == "Trabajador independiente")
+        | (tipo_entidad == "Independiente y otros")
+        | (situacion == "No labora actualmente")
+        | (tipo_entidad == "No labora actualmente")
+    )
+    df.loc[mask_no_corresponde, "rubro_organizacion"] = "No corresponde"
+
+    mask_privado_sin_rubro = (
+        (situacion == "Trabajador dependiente")
+        & (tipo_entidad == "Entidad privada")
+        & _es_rubro_privado_sin_valor(df["rubro_organizacion"])
+    )
+    df.loc[mask_privado_sin_rubro, "rubro_organizacion"] = "No indica"
+
+    return df
+
+
 def aplicar_reglas_finales(df: pd.DataFrame) -> pd.DataFrame:
     if {"tipo_entidad", "nivel_gobierno", "nombre_entidad"}.issubset(df.columns):
         tipo_entidad = df["tipo_entidad"].fillna("").astype(str).str.strip()
@@ -32,7 +63,7 @@ def aplicar_reglas_finales(df: pd.DataFrame) -> pd.DataFrame:
         )
         df.loc[mask_nivel, "nivel_gobierno"] = "-"
 
-    for columna in ["clasificacion_empresa", "rubro_organizacion"]:
+    for columna in ["clasificacion_empresa"]:
         if columna in df.columns:
             df.loc[_es_vacio(df[columna]), columna] = "-"
 
@@ -74,6 +105,7 @@ def finalizar_dataset_calificaciones(
 
     emitir("\nNormalizando columnas por situacion_laboral...")
     df = normalizar_columnas_por_situacion_laboral(df)
+    df = normalizar_rubro_organizacion_calificaciones(df)
     df = aplicar_reglas_finales(df)
     analisis_errores = analizar_errores_match_no(df)
 
