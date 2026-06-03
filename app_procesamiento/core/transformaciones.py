@@ -242,16 +242,27 @@ def normalizar_clasificacion_empresa(df: pd.DataFrame) -> pd.DataFrame:
         return df
 
     clasificacion = df["clasificacion_empresa"].fillna("").astype(str).str.strip()
-    claves = clasificacion.map(_normalizar_clave_clasificacion)
-    df["clasificacion_empresa"] = (
-        claves.map(MAP_CLASIFICACION_EMPRESA)
-        .fillna(clasificacion)
-        .mask(clasificacion.isin(["", "-"]), "No indica") #EVALUAR 1000
-    )
+    if "tipo_entidad" in df.columns:
+        tipo_entidad = df["tipo_entidad"].fillna("").astype(str).str.strip()
+        mask_privada = tipo_entidad == "Entidad privada"
+    else:
+        mask_privada = pd.Series(False, index=df.index)
 
-    mype = pd.Series("No determinado", index=df.index)
-    mype.loc[df["clasificacion_empresa"].isin(VALORES_MYPE_SI)] = "S\u00ed"
-    mype.loc[df["clasificacion_empresa"].isin(VALORES_MYPE_NO)] = "No"
+    if mask_privada.any():
+        clasificacion_privada = clasificacion[mask_privada]
+        claves = clasificacion_privada.map(_normalizar_clave_clasificacion)
+        df.loc[mask_privada, "clasificacion_empresa"] = (
+            claves.map(MAP_CLASIFICACION_EMPRESA)
+            .fillna(clasificacion_privada)
+            .mask(clasificacion_privada.isin(["", "-"]), "No indica")
+        )
+
+    clasificacion_mype = df["clasificacion_empresa"].fillna("").astype(str).str.strip()
+    mype = df["clasificacion_empresa"].copy().astype("object")
+    mype.loc[mask_privada] = "No determinado"
+    mype.loc[mask_privada & clasificacion_mype.isin(VALORES_MYPE_SI)] = "S\u00ed"
+    mype.loc[mask_privada & clasificacion_mype.isin(VALORES_MYPE_NO)] = "No"
+    mype.loc[mask_privada & (clasificacion_mype == "No indica")] = "No indica"
     df["MYPE"] = mype
 
     return df

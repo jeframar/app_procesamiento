@@ -148,15 +148,15 @@ def renumerar_id_por_apellidos_nombres(df: pd.DataFrame) -> pd.DataFrame:
     if "apellidos_nombres" not in df.columns:
         return df
 
-    clave_nombre = df["apellidos_nombres"].map(_normalizar_texto_orden)
-    orden = (
+    df = df.copy()
+    clave_nombre = df["apellidos_nombres"].reset_index(drop=True).map(_normalizar_texto_orden)
+    orden_posiciones = (
         pd.DataFrame(
             {
                 "_nombre_vacio": clave_nombre.eq(""),
                 "_nombre_orden": clave_nombre,
                 "_orden_original": range(len(df)),
-            },
-            index=df.index,
+            }
         )
         .sort_values(
             by=["_nombre_vacio", "_nombre_orden", "_orden_original"],
@@ -165,8 +165,10 @@ def renumerar_id_por_apellidos_nombres(df: pd.DataFrame) -> pd.DataFrame:
         .index
     )
 
-    df = df.loc[orden].copy()
-    df["id"] = range(1, len(df) + 1)
+    ids = [0] * len(df)
+    for id_valor, posicion in enumerate(orden_posiciones, start=1):
+        ids[posicion] = id_valor
+    df["id"] = ids
 
     columnas = list(df.columns)
     columnas.remove("id")
