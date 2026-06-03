@@ -54,16 +54,6 @@ def normalizar_rubro_organizacion_calificaciones(df: pd.DataFrame) -> pd.DataFra
 
 
 def aplicar_reglas_finales(df: pd.DataFrame) -> pd.DataFrame:
-    if {"tipo_entidad", "nivel_gobierno", "nombre_entidad"}.issubset(df.columns):
-        tipo_entidad = df["tipo_entidad"].fillna("").astype(str).str.strip()
-        nombre_entidad = df["nombre_entidad"].fillna("").astype(str).str.strip()
-        mask_nivel = (
-            (tipo_entidad == "Entidad p\u00fablica")
-            & _es_vacio(df["nivel_gobierno"])
-            & (nombre_entidad == "INDEPENDIENTE Y OTROS")
-        )
-        df.loc[mask_nivel, "nivel_gobierno"] = "-"
-
     for columna in ["clasificacion_empresa"]:
         if columna in df.columns:
             df.loc[_es_vacio(df[columna]), columna] = "-"

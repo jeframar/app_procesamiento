@@ -114,21 +114,20 @@ corresponde a la pestana `Finalizar limpieza`; en CLI corresponde al modo
 2. `core.entidades::aplicar_match_por_ruc(df, bd, reset_match=True)`
 3. `core.entidades::aplicar_match_por_nombre(df, bd)`
 4. `core.limpieza_laboral::normalizar_columnas_por_situacion_laboral(df)`
-5. `core.limpieza_laboral::normalizar_columna_rnp(df)`
-6. Reglas finales por `situacion_laboral`:
+5. Reglas finales por `situacion_laboral`:
    - dependiente publico: completa campos que no corresponden y ajusta perfil
-     vacio u otros segun RNP.
-   - dependiente privado: pone `nivel_gobierno = "-"` y marca campos no
+     vacio u otros segun RNP. Si `ruc = 0`,
+     `nombre_entidad = "INDEPENDIENTE Y OTROS"` y `nivel_gobierno` esta vacio
+     o es `-`, pone `nivel_gobierno = "No indica"`.
+   - dependiente privado: pone `nivel_gobierno = "No corresponde"` y marca campos no
      aplicables como `No corresponde`.
-   - trabajador independiente: pone `nivel_gobierno = "-"`,
+   - trabajador independiente: pone `nivel_gobierno = "No corresponde"`,
      `nombre_entidad = "INDEPENDIENTE Y OTROS"` y normaliza perfil por RNP.
    - no labora actualmente: marca campos como `No corresponde` y
      `tipo_entidad = "No labora actualmente"`.
-7. `core.limpieza_laboral::normalizar_perfil_entidad_publica_por_rnp(df)`
-8. `core.limpieza_laboral::normalizar_perfil_independiente_por_rnp(df)`
-9. `core.limpieza_laboral::normalizar_perfil_proveedor_por_tipo_entidad_rnp(df)`
-10. `core.finalizacion_calificaciones::aplicar_reglas_finales(df)`
-11. `core.errores_match_no::analizar_errores_match_no(df)`
+6. `core.finalizacion_calificaciones::normalizar_rubro_organizacion_calificaciones(df)`
+7. `core.finalizacion_calificaciones::aplicar_reglas_finales(df)`
+8. `core.errores_match_no::analizar_errores_match_no(df)`
 
 ### Reglas importantes de perfil por RNP
 
