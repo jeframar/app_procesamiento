@@ -360,9 +360,10 @@ def eliminar_columnas_exportacion(df: pd.DataFrame) -> pd.DataFrame:
         "ambito_desempeno",
         "Dirección de correo",
         "Ciudad",
+        "match_entidad",
         "_dni_original",
         "_dni_merge",
-        "_nombre_merge"
+        "_nombre_merge",
     ]
     df = df.drop(columns=cols_eliminar, errors="ignore")
 
