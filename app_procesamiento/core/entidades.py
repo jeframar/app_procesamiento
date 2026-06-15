@@ -11,6 +11,7 @@ from app_procesamiento.core.google_sheets import (
     write_rows,
 )
 from app_procesamiento.core.limpieza_laboral import es_vacio, sit, tipo
+from app_procesamiento.core.utils import normalizar_ruc_para_match
 
 
 COLUMNAS_ENTIDAD = ["RUC", "Nivel de Gobierno", "Tipo de entidad", "Nombre de entidad"]
@@ -91,14 +92,13 @@ def validar_ruc_para_match(df: pd.DataFrame) -> pd.DataFrame:
     if "ruc" not in df.columns:
         return df
 
-    ruc_str = df["ruc"].astype(str).str.strip().str.replace(r"\D", "", regex=True)
-    ruc_valido = ruc_str.str.fullmatch(r"\d{11}") & ruc_str.str[:2].isin(["10", "15", "17", "20"])
-    df["ruc"] = ruc_str.where(ruc_valido, "0")
+    df["ruc"] = normalizar_ruc_para_match(df["ruc"])
     return df
 
 
 def preparar_bd_para_match_por_ruc(bd: pd.DataFrame) -> pd.DataFrame:
     bd = normalizar_columnas_entidad(bd)
+    bd["RUC"] = normalizar_ruc_para_match(bd["RUC"])
     ruc_limpio = bd["RUC"].astype(str).str.strip()
     bd = bd[~ruc_limpio.str.lower().isin(["", "0", "nan", "none"])].copy()
 
@@ -164,6 +164,8 @@ def aplicar_match_por_ruc(
 
 def aplicar_match_por_nombre(df: pd.DataFrame, bd: pd.DataFrame) -> tuple[pd.DataFrame, int]:
     bd = normalizar_columnas_entidad(bd)
+    bd["RUC"] = normalizar_ruc_para_match(bd["RUC"])
+    bd = bd[~bd["RUC"].astype(str).str.strip().isin(["", "0"])].copy()
 
     if "match_entidad" not in df.columns:
         df["match_entidad"] = "NO"

@@ -3,6 +3,9 @@ import unicodedata
 import pandas as pd
 
 
+PREFIJOS_RUC_VALIDOS = ("10", "15", "17", "20")
+
+
 def normalizar_dni(serie: pd.Series) -> pd.Series:
     serie = (
         serie.fillna("")
@@ -74,14 +77,22 @@ def normalizar_celular(serie: pd.Series) -> pd.Series:
 
 
 def normalizar_ruc(serie: pd.Series) -> pd.Series:
-    serie = (
+    ruc = (
         serie.fillna("")
         .astype(str)
-        .str.replace(r"\s+", "", regex=True)
         .str.strip()
+        .str.replace(r"[\.,]0+$", "", regex=True)
+        .str.replace(r"\s+", "", regex=True)
+        .str.replace(r"\D", "", regex=True)
     )
-    serie.loc[~serie.str.fullmatch(r"\d{11}")] = "0"
-    return serie
+    ruc.loc[~ruc.str.fullmatch(r"\d{11}")] = "0"
+    return ruc
+
+
+def normalizar_ruc_para_match(serie: pd.Series) -> pd.Series:
+    ruc = normalizar_ruc(serie)
+    ruc.loc[~ruc.str[:2].isin(PREFIJOS_RUC_VALIDOS)] = "0"
+    return ruc
 
 
 def normalizar_region(serie: pd.Series) -> pd.Series:

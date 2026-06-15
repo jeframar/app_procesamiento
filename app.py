@@ -5,6 +5,7 @@ from io import BytesIO
 from io import StringIO
 from pathlib import Path
 import sys
+from time import time_ns
 
 import pandas as pd
 import streamlit as st
@@ -190,7 +191,15 @@ def sheets_service_from_secrets():
     )
 
 
-def cargar_bd_y_etiquetas(_service, spreadsheet_id: str, hoja_bd: str, hoja_aniadir: str, hoja_etiquetas: str):
+def cargar_bd_y_etiquetas(
+    _service,
+    spreadsheet_id: str,
+    hoja_bd: str,
+    hoja_aniadir: str,
+    hoja_etiquetas: str,
+    recarga_id: int | None = None,
+):
+    del recarga_id
     bd = cargar_bd_entidades(
         _service,
         spreadsheet_id,
@@ -201,10 +210,23 @@ def cargar_bd_y_etiquetas(_service, spreadsheet_id: str, hoja_bd: str, hoja_ania
     return bd, etiquetas
 
 
-def contexto_google(spreadsheet_url: str, hoja_bd: str, hoja_aniadir: str, hoja_etiquetas: str):
+def contexto_google(
+    spreadsheet_url: str,
+    hoja_bd: str,
+    hoja_aniadir: str,
+    hoja_etiquetas: str,
+    recarga_id: int | None = None,
+):
     service = sheets_service_from_secrets()
     spreadsheet_id = extract_spreadsheet_id(spreadsheet_url)
-    bd, etiquetas = cargar_bd_y_etiquetas(service, spreadsheet_id, hoja_bd, hoja_aniadir, hoja_etiquetas)
+    bd, etiquetas = cargar_bd_y_etiquetas(
+        service,
+        spreadsheet_id,
+        hoja_bd,
+        hoja_aniadir,
+        hoja_etiquetas,
+        recarga_id=recarga_id,
+    )
     return service, spreadsheet_id, bd, etiquetas
 
 
@@ -238,11 +260,14 @@ def limpiar_calificaciones(uploaded_file, registrar_pendientes: bool, cfg: dict)
 
 
 def finalizar_calificaciones(uploaded_file, cfg: dict):
+    st.cache_data.clear()
+
     _, _, bd, _ = contexto_google(
         cfg["spreadsheet_url"],
         cfg["hoja_bd"],
         cfg["hoja_aniadir"],
         cfg["hoja_etiquetas"],
+        recarga_id=time_ns(),
     )
 
     df = leer_excel(uploaded_file)
