@@ -1,3 +1,5 @@
+from decimal import Decimal, InvalidOperation
+import re
 import unicodedata
 
 import pandas as pd
@@ -76,15 +78,50 @@ def normalizar_celular(serie: pd.Series) -> pd.Series:
     return serie
 
 
-def normalizar_ruc(serie: pd.Series) -> pd.Series:
-    ruc = (
-        serie.fillna("")
-        .astype(str)
-        .str.strip()
-        .str.replace(r"[\.,]0+$", "", regex=True)
-        .str.replace(r"\s+", "", regex=True)
-        .str.replace(r"\D", "", regex=True)
+def _texto_decimal_entero(valor: str) -> str | None:
+    texto = valor.replace(",", ".")
+    try:
+        numero = Decimal(texto)
+    except InvalidOperation:
+        return None
+
+    if numero != numero.to_integral_value():
+        return None
+
+    return format(numero.quantize(Decimal(1)), "f")
+
+
+def _normalizar_ruc_valor(valor) -> str:
+    try:
+        if pd.isna(valor):
+            return "0"
+    except (TypeError, ValueError):
+        pass
+
+    texto = (
+        str(valor)
+        .strip()
+        .replace("\u00a0", "")
+        .replace("\u200b", "")
+        .removeprefix("'")
+        .strip()
     )
+    if texto.lower() in {"", "nan", "none", "<na>"}:
+        return "0"
+
+    texto_sin_espacios = re.sub(r"\s+", "", texto)
+    if re.fullmatch(r"[+-]?\d+(?:[\.,]\d+)?[eE][+-]?\d+", texto_sin_espacios):
+        decimal_entero = _texto_decimal_entero(texto_sin_espacios)
+        if decimal_entero is not None:
+            texto_sin_espacios = decimal_entero
+    else:
+        texto_sin_espacios = re.sub(r"[\.,]0+$", "", texto_sin_espacios)
+
+    return re.sub(r"\D", "", texto_sin_espacios)
+
+
+def normalizar_ruc(serie: pd.Series) -> pd.Series:
+    ruc = serie.map(_normalizar_ruc_valor).astype(str)
     ruc.loc[~ruc.str.fullmatch(r"\d{11}")] = "0"
     return ruc
 

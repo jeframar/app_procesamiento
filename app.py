@@ -45,6 +45,7 @@ from app_procesamiento.core.procesamiento_actividades import (
     procesar_mooc_dataset,
     procesar_videoconferencia_dataset,
 )
+from app_procesamiento.core.utils import normalizar_ruc_para_match
 
 
 st.set_page_config(
@@ -67,7 +68,29 @@ def leer_actividades_upload(uploaded_file) -> pd.DataFrame:
 
 def leer_excel(uploaded_file) -> pd.DataFrame:
     uploaded_file.seek(0)
-    return pd.read_excel(uploaded_file)
+    return pd.read_excel(uploaded_file, dtype={"ruc": "string", "RUC": "string"})
+
+
+def diagnosticar_ruc_match(df: pd.DataFrame, bd: pd.DataFrame) -> dict[str, int]:
+    rucs_dataset = (
+        normalizar_ruc_para_match(df["ruc"])
+        if "ruc" in df.columns
+        else pd.Series(dtype=str)
+    )
+    rucs_bd = (
+        normalizar_ruc_para_match(bd["RUC"])
+        if "RUC" in bd.columns
+        else pd.Series(dtype=str)
+    )
+
+    rucs_dataset_validos = set(rucs_dataset[rucs_dataset != "0"])
+    rucs_bd_validos = set(rucs_bd[rucs_bd != "0"])
+
+    return {
+        "ruc_validos_dataset": len(rucs_dataset_validos),
+        "ruc_validos_bd": len(rucs_bd_validos),
+        "ruc_comunes": len(rucs_dataset_validos & rucs_bd_validos),
+    }
 
 
 def leer_calificados_upload(uploaded_file) -> pd.DataFrame:
@@ -272,6 +295,7 @@ def finalizar_calificaciones(uploaded_file, cfg: dict):
 
     df = leer_excel(uploaded_file)
     registros_cargados = len(df)
+    diagnostico_ruc = diagnosticar_ruc_match(df, bd)
 
     df, matches_ruc, matches_nombre, analisis_errores = finalizar_dataset_calificaciones(
         df,
@@ -285,7 +309,7 @@ def finalizar_calificaciones(uploaded_file, cfg: dict):
         "Matches por nombre": matches_nombre,
         "Errores match_entidad = NO": analisis_errores.total_casos,
     }
-    return df, metricas, analisis_errores
+    return df, metricas, analisis_errores, diagnostico_ruc
 
 
 def procesar_microlearning(actividades_file, dataset_file, examen_entrada_file, examen_final_file):
@@ -383,6 +407,19 @@ def mostrar_errores_match_no(analisis: AnalisisErroresMatchNo) -> None:
         "Se sugiere revisar cuidadosamente estos casos antes de usar el dataset final.",
     ]
     st.error("\n".join(lineas))
+
+
+def mostrar_diagnostico_ruc_match(metricas: dict, diagnostico: dict[str, int]) -> None:
+    if metricas.get("Matches por RUC", 0) != 0 or metricas.get("Matches por nombre", 0) == 0:
+        return
+
+    st.warning(
+        "No hubo matches por RUC, pero si por nombre. "
+        "Diagnostico previo: "
+        f"{diagnostico['ruc_validos_dataset']} RUC validos en el archivo, "
+        f"{diagnostico['ruc_validos_bd']} RUC validos en la BD y "
+        f"{diagnostico['ruc_comunes']} RUC comunes entre ambos."
+    )
 
 
 def mensaje_error_usuario(error: Exception) -> str:
@@ -803,12 +840,13 @@ with tab_finalizar:
     if clic_finalizar:
         try:
             with st.spinner("Procesando..."):
-                df_final, metricas, analisis_errores = finalizar_calificaciones(
+                df_final, metricas, analisis_errores, diagnostico_ruc = finalizar_calificaciones(
                     archivo_limpiado,
                     cfg,
                 )
             st.success("Dataset consolidado correctamente.")
             mostrar_errores_match_no(analisis_errores)
+            mostrar_diagnostico_ruc_match(metricas, diagnostico_ruc)
             mostrar_metricas(metricas)
             descargar_excel(df_final, "dataset_final.xlsx", "Descargar dataset_final.xlsx")
         except Exception as error:

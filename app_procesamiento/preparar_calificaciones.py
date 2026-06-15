@@ -19,6 +19,9 @@ from app_procesamiento.core.google_sheets import build_sheets_service, extract_s
 from app_procesamiento.core.limpieza_calificaciones import limpiar_dataset_calificaciones
 
 
+DTYPE_EXCEL = {"ruc": "string", "RUC": "string"}
+
+
 def _ruta_input(args, titulo: str) -> Path:
     if args.input:
         return Path(args.input)
@@ -46,6 +49,10 @@ def _cargar_bd(args):
     return service, spreadsheet_id, bd
 
 
+def _leer_excel_dataset(ruta_input: Path) -> pd.DataFrame:
+    return pd.read_excel(ruta_input, dtype=DTYPE_EXCEL)
+
+
 def ejecutar_limpieza(args) -> Path:
     ruta_input = _ruta_input(args, "Seleccione el archivo Calificaciones original")
     ruta_output = _ruta_output(args, ruta_input, "dataset_limpiado.xlsx")
@@ -56,7 +63,7 @@ def ejecutar_limpieza(args) -> Path:
     etiquetas = cargar_etiquetas_entidad(service, spreadsheet_id, args.hoja_etiquetas)
 
     print(f"\nCargando dataset desde: {ruta_input}")
-    df = pd.read_excel(ruta_input)
+    df = _leer_excel_dataset(ruta_input)
     print(f"Registros cargados: {len(df)}")
 
     df, _nombres_normalizados, _matches_ruc, _matches_nombre = limpiar_dataset_calificaciones(
@@ -83,7 +90,7 @@ def ejecutar_finalizacion(args) -> Path:
     _, _, bd = _cargar_bd(args)
 
     print(f"\nCargando dataset desde: {ruta_input}")
-    df = pd.read_excel(ruta_input)
+    df = _leer_excel_dataset(ruta_input)
     print(f"Registros cargados: {len(df)}")
 
     df, _matches_ruc, _matches_nombre, analisis_errores = finalizar_dataset_calificaciones(

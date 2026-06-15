@@ -150,7 +150,11 @@ def download_sheet_as_raw_df(service, spreadsheet_id: str, sheet_name: str) -> p
         f"descargar hoja '{sheet_name}' de {spreadsheet_id}",
         lambda: service.spreadsheets()
         .values()
-        .get(spreadsheetId=spreadsheet_id, range=f"'{sheet_name}'")
+        .get(
+            spreadsheetId=spreadsheet_id,
+            range=f"'{sheet_name}'",
+            valueRenderOption="UNFORMATTED_VALUE",
+        )
         .execute(),
     )
 
