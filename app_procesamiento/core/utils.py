@@ -6,6 +6,8 @@ import pandas as pd
 
 
 PREFIJOS_RUC_VALIDOS = ("10", "15", "17", "20")
+DNI_NO_DISPONIBLE = "99999999"
+DNI_SIN_VALOR = {"00000000", DNI_NO_DISPONIBLE}
 
 
 def normalizar_dni(serie: pd.Series) -> pd.Series:
@@ -16,7 +18,8 @@ def normalizar_dni(serie: pd.Series) -> pd.Series:
         .str.replace(r"\s+", "", regex=True)
         .str.zfill(8)
     )
-    serie.loc[~serie.str.fullmatch(r"\d{8}")] = "00000000"
+    mask_sin_dni = ~serie.str.fullmatch(r"\d{8}") | serie.isin(DNI_SIN_VALOR)
+    serie.loc[mask_sin_dni] = DNI_NO_DISPONIBLE
     return serie
 
 
@@ -39,7 +42,7 @@ def normalizar_dni_para_merge(serie: pd.Series) -> pd.Series:
         dni_sin_ceros.loc[mask_ocho_o_menos | mask_ceros_extra].str.zfill(8)
     )
 
-    valido = normalizado.str.fullmatch(r"\d{8}") & (normalizado != "00000000")
+    valido = normalizado.str.fullmatch(r"\d{8}") & ~normalizado.isin(DNI_SIN_VALOR)
     normalizado.loc[~valido] = ""
     return normalizado
 
@@ -73,7 +76,7 @@ def normalizar_celular(serie: pd.Series) -> pd.Series:
     # validar celular peruano
     mask = serie.str.fullmatch(r"9\d{8}")
 
-    serie.loc[~mask] = "000000000"
+    serie.loc[~mask] = "999999999"
 
     return serie
 

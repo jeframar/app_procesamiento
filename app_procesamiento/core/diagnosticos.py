@@ -5,7 +5,11 @@ from pathlib import Path
 
 import pandas as pd
 
-from app_procesamiento.core.utils import normalizar_dni, normalizar_dni_para_merge
+from app_procesamiento.core.utils import (
+    DNI_NO_DISPONIBLE,
+    normalizar_dni,
+    normalizar_dni_para_merge,
+)
 
 
 @dataclass(frozen=True)
@@ -135,8 +139,8 @@ def _imprimir_diagnostico_dni_calificaciones(serie: pd.Series) -> None:
     dni_prevalidado = _preparar_dni_para_validacion(serie)
     dni_normalizado = normalizar_dni(serie)
     mask_patron_invalido = ~dni_prevalidado.str.fullmatch(r"\d{8}")
-    mask_a_cero = dni_normalizado == "00000000"
-    mask_a_cero_sin_patron_invalido = mask_a_cero & ~mask_patron_invalido
+    mask_no_disponible = dni_normalizado == DNI_NO_DISPONIBLE
+    mask_no_disponible_sin_patron_invalido = mask_no_disponible & ~mask_patron_invalido
 
     print("Valores DNI sospechosos en calificaciones")
     print(
@@ -144,16 +148,16 @@ def _imprimir_diagnostico_dni_calificaciones(serie: pd.Series) -> None:
         "estos valores no se usan como llave de merge por DNI)"
     )
     _imprimir_resumen_valores_dni(
-        "fallan patron \\d{8} y se convierten en 00000000",
+        f"fallan patron \\d{{8}} y se convierten en {DNI_NO_DISPONIBLE}",
         serie,
         dni_prevalidado,
         mask_patron_invalido,
     )
     _imprimir_resumen_valores_dni(
-        "normalizan a 00000000 sin fallar patron",
+        f"normalizan a {DNI_NO_DISPONIBLE} sin fallar patron",
         serie,
         dni_prevalidado,
-        mask_a_cero_sin_patron_invalido,
+        mask_no_disponible_sin_patron_invalido,
     )
 
 
