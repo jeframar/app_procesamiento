@@ -329,7 +329,6 @@ def procesar_microlearning(
     examen_entrada_file,
     examen_final_file,
     evaluaciones_intermedias_files=None,
-    fecha_emision: str = config.FECHA_EMISION_CERTIFICADO,
 ):
     evaluaciones_intermedias_files = evaluaciones_intermedias_files or []
     imprimir_diagnostico_duplicados_dni(
@@ -356,7 +355,6 @@ def procesar_microlearning(
         examen_entrada,
         examen_final,
         evaluaciones_intermedias,
-        fecha_emision,
     )
 
 
@@ -366,7 +364,6 @@ def procesar_mooc(
     examen_entrada_file,
     examen_final_file,
     evaluaciones_intermedias_files=None,
-    fecha_emision: str = config.FECHA_EMISION_CERTIFICADO,
 ):
     evaluaciones_intermedias_files = evaluaciones_intermedias_files or []
     imprimir_diagnostico_duplicados_dni(
@@ -390,15 +387,10 @@ def procesar_mooc(
         examen_entrada,
         leer_examen_final_upload(examen_final_file),
         evaluaciones_intermedias,
-        fecha_emision,
     )
 
 
-def procesar_videoconferencia(
-    actividades_file,
-    dataset_file,
-    fecha_emision: str = config.FECHA_EMISION_CERTIFICADO,
-):
+def procesar_videoconferencia(actividades_file, dataset_file):
     imprimir_diagnostico_duplicados_dni(
         actividades_file,
         dataset_file,
@@ -407,7 +399,6 @@ def procesar_videoconferencia(
     return procesar_videoconferencia_dataset(
         leer_actividades_upload(actividades_file),
         leer_calificados_upload(dataset_file),
-        fecha_emision,
     )
 
 
@@ -1003,14 +994,11 @@ with tab_procesar:
     if clic_procesar:
         mensajes_buffer = StringIO()
         try:
+            config.FECHA_EMISION_CERTIFICADO = fecha_emision_certificado
             with st.spinner("Procesando..."):
                 with redirect_stdout(mensajes_buffer):
                     if tipo_actividad == "Videoconferencia":
-                        df_resultado = procesar_videoconferencia(
-                            actividades,
-                            dataset_final,
-                            fecha_emision_certificado,
-                        )
+                        df_resultado = procesar_videoconferencia(actividades, dataset_final)
                         nombre_archivo = "videoconferencia_procesado.xlsx"
                     elif tipo_actividad == "Microlearning":
                         df_resultado = procesar_microlearning(
@@ -1019,7 +1007,6 @@ with tab_procesar:
                             examen_entrada,
                             examen_final,
                             evaluaciones_intermedias,
-                            fecha_emision_certificado,
                         )
                         nombre_archivo = "microlearning_procesado.xlsx"
                     else:
@@ -1029,7 +1016,6 @@ with tab_procesar:
                             examen_entrada,
                             examen_final,
                             evaluaciones_intermedias,
-                            fecha_emision_certificado,
                         )
                         nombre_archivo = "mooc_procesado.xlsx"
 

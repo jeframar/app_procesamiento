@@ -3,13 +3,17 @@ import unicodedata
 import numpy as np
 import pandas as pd
 
-from app_procesamiento.config import FECHA_EMISION_CERTIFICADO
+from app_procesamiento import config
+
+
+def _fecha_emision_actual(fecha_emision: str | None) -> str:
+    return fecha_emision or config.FECHA_EMISION_CERTIFICADO
 
 
 def agregar_certificado_por_total(
     df: pd.DataFrame,
     crear_si_no_hay_total: bool = False,
-    fecha_emision: str = FECHA_EMISION_CERTIFICADO,
+    fecha_emision: str | None = None,
 ) -> pd.DataFrame:
     if "total_curso" not in df.columns:
         if crear_si_no_hay_total:
@@ -17,6 +21,7 @@ def agregar_certificado_por_total(
             df["emision_certificado"] = "-"
         return df
 
+    fecha_emision = _fecha_emision_actual(fecha_emision)
     df["condicion"] = ""
     df["certificado"] = np.where(df["total_curso"] >= 14, "CERTIFICADO", "NO CORRESPONDE")
     df["emision_certificado"] = np.where(df["total_curso"] >= 14, fecha_emision, "-")
@@ -83,7 +88,7 @@ def _buscar_columna_por_fragmento(df: pd.DataFrame, fragmento: str):
 
 def calcular_condicion_y_constancia(
     df: pd.DataFrame,
-    fecha_emision: str = FECHA_EMISION_CERTIFICADO,
+    fecha_emision: str | None = None,
 ) -> pd.DataFrame:
     columnas_asistencia_vivo = _columnas_asistencia_en_vivo(df)
     if columnas_asistencia_vivo:
@@ -119,6 +124,7 @@ def calcular_condicion_y_constancia(
     else:
         constancia_finalizada = _estado_finalizado(df[col_constancia])
 
+    fecha_emision = _fecha_emision_actual(fecha_emision)
     df["certificado"] = np.where(
         (df["condicion"] == "ASISTENTE") & constancia_finalizada,
         "CONSTANCIA",
