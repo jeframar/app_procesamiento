@@ -36,6 +36,7 @@ from app_procesamiento.core.google_sheets import (
 from app_procesamiento.core.lectores import (
     leer_actividades,
     leer_calificados,
+    leer_evaluacion_intermedia,
     leer_examen,
     leer_examen_final,
 )
@@ -108,6 +109,11 @@ def leer_examen_final_upload(uploaded_file) -> pd.DataFrame:
     return leer_examen_final(uploaded_file)
 
 
+def leer_evaluacion_intermedia_upload(uploaded_file, numero: int) -> pd.DataFrame:
+    uploaded_file.seek(0)
+    return leer_evaluacion_intermedia(uploaded_file, numero)
+
+
 def streamlit_secret_section(name: str) -> dict | None:
     try:
         if name not in st.secrets:
@@ -153,12 +159,12 @@ def streamlit_user_credentials() -> UserCredentials:
 
 
 def render_streamlit_login() -> None:
-    st.markdown("### Iniciar sesion con Google")
+    st.markdown("### Iniciar sesión con Google")
     st.info(
         "Autenticate con tu cuenta institucional para acceder a Google Sheets. "
-        "Luego podras usar la app completa durante esta sesion."
+        "Luego podras usar la app completa durante esta sesión."
     )
-    if st.button("Iniciar sesion con Google", type="primary"):
+    if st.button("Iniciar sesión con Google", type="primary"):
         st.login()
 
 
@@ -181,7 +187,7 @@ def ensure_google_auth_ready() -> None:
 
     if streamlit_access_token() is None:
         st.error(
-            "Inicio de sesion correcto, pero falta el access token para Google Sheets. "
+            "Inicio de sesión correcto, pero falta el access token para Google Sheets. "
             "En [auth], configura expose_tokens = \"access\" y el scope "
             "https://www.googleapis.com/auth/spreadsheets."
         )
@@ -312,12 +318,20 @@ def finalizar_calificaciones(uploaded_file, cfg: dict):
     return df, metricas, analisis_errores, diagnostico_ruc
 
 
-def procesar_microlearning(actividades_file, dataset_file, examen_entrada_file, examen_final_file):
+def procesar_microlearning(
+    actividades_file,
+    dataset_file,
+    examen_entrada_file,
+    examen_final_file,
+    evaluaciones_intermedias_files=None,
+):
+    evaluaciones_intermedias_files = evaluaciones_intermedias_files or []
     imprimir_diagnostico_duplicados_dni(
         actividades_file,
         dataset_file,
         examen_entrada_file,
         examen_final_file,
+        evaluaciones_intermedias_files,
     )
 
     examen_entrada = (
@@ -326,30 +340,48 @@ def procesar_microlearning(actividades_file, dataset_file, examen_entrada_file, 
     examen_final = (
         leer_examen_final_upload(examen_final_file) if examen_final_file is not None else None
     )
+    evaluaciones_intermedias = [
+        leer_evaluacion_intermedia_upload(archivo, numero)
+        for numero, archivo in enumerate(evaluaciones_intermedias_files, start=1)
+    ]
     return procesar_microlearning_dataset(
         leer_actividades_upload(actividades_file),
         leer_calificados_upload(dataset_file),
         examen_entrada,
         examen_final,
+        evaluaciones_intermedias,
     )
 
 
-def procesar_mooc(actividades_file, dataset_file, examen_entrada_file, examen_final_file):
+def procesar_mooc(
+    actividades_file,
+    dataset_file,
+    examen_entrada_file,
+    examen_final_file,
+    evaluaciones_intermedias_files=None,
+):
+    evaluaciones_intermedias_files = evaluaciones_intermedias_files or []
     imprimir_diagnostico_duplicados_dni(
         actividades_file,
         dataset_file,
         examen_entrada_file,
         examen_final_file,
+        evaluaciones_intermedias_files,
     )
 
     examen_entrada = (
         leer_examen_upload(examen_entrada_file) if examen_entrada_file is not None else None
     )
+    evaluaciones_intermedias = [
+        leer_evaluacion_intermedia_upload(archivo, numero)
+        for numero, archivo in enumerate(evaluaciones_intermedias_files, start=1)
+    ]
     return procesar_mooc_dataset(
         leer_actividades_upload(actividades_file),
         leer_calificados_upload(dataset_file),
         examen_entrada,
         leer_examen_final_upload(examen_final_file),
+        evaluaciones_intermedias,
     )
 
 
@@ -442,7 +474,7 @@ def mensaje_error_usuario(error: Exception) -> str:
         )
 
     if any(texto in mensaje_lower for texto in ("401", "invalid_grant", "unauthorized")):
-        return "Tu sesion de Google expiro o fue revocada. Cierra sesion e inicia nuevamente."
+        return "Tu sesión de Google expiro o fue revocada. Cierra sesión e inicia nuevamente."
 
     return mensaje
 
@@ -724,9 +756,9 @@ def render_auth_status_sidebar() -> None:
         return
 
     st.markdown("### Acceso")
-    email = st.user.get("email", "Sesion de Google activa")
+    email = st.user.get("email", "Sesión de Google activa")
     st.caption(str(email))
-    if st.button("Cerrar sesion", key="btn_logout_google", use_container_width=True):
+    if st.button("Cerrar sesión", key="btn_logout_google", use_container_width=True):
         st.logout()
     st.markdown("---")
 
@@ -885,21 +917,42 @@ with tab_procesar:
 
     examen_entrada = None
     examen_final = None
+    evaluaciones_intermedias = []
 
     if tipo_actividad in {"Microlearning", "MOOC"}:
-        col3, col4 = st.columns(2)
-        with col3:
-            examen_entrada = st.file_uploader(
-                "Examen de entrada (XLSX)",
+        examen_entrada = st.file_uploader(
+            "Examen de entrada (XLSX)",
+            type=["xlsx"],
+            key=f"entrada_{tipo_actividad}",
+        )
+
+        contador_intermedias_key = f"notas_intermedias_count_{tipo_actividad}"
+        if contador_intermedias_key not in st.session_state:
+            st.session_state[contador_intermedias_key] = 0
+
+        col_intermedia, _ = st.columns([1, 3])
+        with col_intermedia:
+            if st.button(
+                "+ Nota intermedia",
+                key=f"add_intermedia_{tipo_actividad}",
+                use_container_width=True,
+            ):
+                st.session_state[contador_intermedias_key] += 1
+
+        for numero in range(1, st.session_state[contador_intermedias_key] + 1):
+            archivo_intermedio = st.file_uploader(
+                f"Notas intermedias {numero} (XLSX)",
                 type=["xlsx"],
-                key=f"entrada_{tipo_actividad}",
+                key=f"intermedia_{tipo_actividad}_{numero}",
             )
-        with col4:
-            examen_final = st.file_uploader(
-                "Examen final (XLSX)",
-                type=["xlsx"],
-                key=f"final_exam_{tipo_actividad}",
-            )
+            if archivo_intermedio is not None:
+                evaluaciones_intermedias.append(archivo_intermedio)
+
+        examen_final = st.file_uploader(
+            "Examen final (XLSX)",
+            type=["xlsx"],
+            key=f"final_exam_{tipo_actividad}",
+        )
 
     requiere_examen_final = tipo_actividad == "MOOC"
     listo = (
@@ -939,6 +992,7 @@ with tab_procesar:
                             dataset_final,
                             examen_entrada,
                             examen_final,
+                            evaluaciones_intermedias,
                         )
                         nombre_archivo = "microlearning_procesado.xlsx"
                     else:
@@ -947,6 +1001,7 @@ with tab_procesar:
                             dataset_final,
                             examen_entrada,
                             examen_final,
+                            evaluaciones_intermedias,
                         )
                         nombre_archivo = "mooc_procesado.xlsx"
 

@@ -205,3 +205,10 @@ def leer_examen_final(ruta_excel: str | Path) -> pd.DataFrame:
     df = _deduplicar_examen_final(df)
 
     return df
+
+
+def leer_evaluacion_intermedia(ruta_excel: str | Path, numero: int) -> pd.DataFrame:
+    df = leer_examen_final(ruta_excel)
+    return df.rename(
+        columns={COLUMNA_CALIFICACION: f"{COLUMNA_CALIFICACION}_intermedio{numero}"}
+    )

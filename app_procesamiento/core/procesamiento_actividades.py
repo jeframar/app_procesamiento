@@ -7,6 +7,7 @@ from app_procesamiento.core.certificados import (
     calcular_condicion_y_constancia,
 )
 from app_procesamiento.core.columnas import (
+    actualizar_total_curso_desde_notas,
     convertir_columnas_calificacion,
     eliminar_columnas_actividad,
     mover_columna_despues_de_otra,
@@ -23,18 +24,66 @@ from app_procesamiento.core.transformaciones import (
 )
 
 
+COLUMNA_CALIFICACION = "Calificación/20,00"
+
+
+def _tiene_evaluaciones_intermedias(
+    evaluaciones_intermedias: list[pd.DataFrame] | None,
+) -> bool:
+    return any(evaluacion is not None for evaluacion in evaluaciones_intermedias or [])
+
+
+def _renombrar_examen_final_si_hay_intermedias(
+    examen_final: pd.DataFrame,
+    evaluaciones_intermedias: list[pd.DataFrame] | None,
+) -> pd.DataFrame:
+    columna_final = f"{COLUMNA_CALIFICACION}_final"
+    if (
+        _tiene_evaluaciones_intermedias(evaluaciones_intermedias)
+        and COLUMNA_CALIFICACION in examen_final.columns
+        and columna_final not in examen_final.columns
+    ):
+        return examen_final.rename(columns={COLUMNA_CALIFICACION: columna_final})
+    return examen_final
+
+
+def _mergear_evaluaciones_intermedias(
+    df: pd.DataFrame,
+    evaluaciones_intermedias: list[pd.DataFrame] | None,
+) -> pd.DataFrame:
+    if not evaluaciones_intermedias:
+        return df
+
+    for numero, evaluacion in enumerate(evaluaciones_intermedias, start=1):
+        if evaluacion is None:
+            continue
+        df = merge_por_dni_o_nombre(
+            df,
+            evaluacion,
+            f"evaluacion intermedia {numero}",
+        )
+    return df
+
+
 def procesar_microlearning_dataset(
     actividades: pd.DataFrame,
     calificados: pd.DataFrame,
     examen_entrada: pd.DataFrame | None = None,
     examen_final: pd.DataFrame | None = None,
+    evaluaciones_intermedias: list[pd.DataFrame] | None = None,
 ) -> pd.DataFrame:
     df = unir_fuentes(calificados, actividades)
 
     if examen_entrada is not None:
         df = merge_por_dni_o_nombre(df, examen_entrada, "examen entrada")
 
+    df = _mergear_evaluaciones_intermedias(df, evaluaciones_intermedias)
+
     if examen_final is not None:
+        examen_final = _renombrar_examen_final_si_hay_intermedias(
+            examen_final,
+            evaluaciones_intermedias,
+        )
         df = merge_por_dni_o_nombre(
             df,
             examen_final,
@@ -46,6 +95,11 @@ def procesar_microlearning_dataset(
     df = eliminar_columnas_basura(df)
     df = limpiar_campos_generales(df)
     df = convertir_columnas_calificacion(df)
+    df = actualizar_total_curso_desde_notas(
+        df,
+        tiene_examen_entrada=examen_entrada is not None,
+        tiene_examen_final=examen_final is not None,
+    )
     df = ordenar_bloque_calificaciones(df)
     df = ordenar_columnas_intermedias(df)
     df = mover_columna_despues_de_otra(df, "clasificacion_empresa", "perfil")
@@ -59,12 +113,19 @@ def procesar_mooc_dataset(
     calificados: pd.DataFrame,
     examen_entrada: pd.DataFrame | None,
     examen_final: pd.DataFrame,
+    evaluaciones_intermedias: list[pd.DataFrame] | None = None,
 ) -> pd.DataFrame:
     df = unir_fuentes(calificados, actividades)
 
     if examen_entrada is not None:
         df = merge_por_dni_o_nombre(df, examen_entrada, "examen entrada")
 
+    df = _mergear_evaluaciones_intermedias(df, evaluaciones_intermedias)
+
+    examen_final = _renombrar_examen_final_si_hay_intermedias(
+        examen_final,
+        evaluaciones_intermedias,
+    )
     df = merge_por_dni_o_nombre(
         df,
         examen_final,
@@ -76,6 +137,11 @@ def procesar_mooc_dataset(
     df = eliminar_columnas_basura(df)
     df = limpiar_campos_generales(df)
     df = convertir_columnas_calificacion(df)
+    df = actualizar_total_curso_desde_notas(
+        df,
+        tiene_examen_entrada=examen_entrada is not None,
+        tiene_examen_final=examen_final is not None,
+    )
     df = mover_columna_despues_de_otra(df, "clasificacion_empresa", "perfil")
     df = mover_columna_despues_de_otra(df, "total_curso", "Calificaci\u00f3n/20,00_final")
     df = ordenar_bloque_calificaciones(df)

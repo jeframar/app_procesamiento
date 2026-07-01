@@ -77,10 +77,64 @@ def mover_columna_despues_de_otra(
     return df[columnas]
 
 
+def _columnas_calificacion_intermedia(df: pd.DataFrame) -> list:
+    prefijo = "Calificación/20,00_intermedio"
+
+    def clave(columna) -> tuple[int, int | str]:
+        sufijo = str(columna).removeprefix(prefijo)
+        if sufijo.isdigit():
+            return (0, int(sufijo))
+        return (1, str(columna))
+
+    return sorted(
+        [c for c in df.columns if str(c).startswith(prefijo)],
+        key=clave,
+    )
+
+
+def _columnas_calificacion_para_total(
+    df: pd.DataFrame,
+    tiene_examen_entrada: bool,
+    tiene_examen_final: bool,
+) -> list:
+    columnas = [*_columnas_calificacion_intermedia(df)]
+
+    if tiene_examen_final:
+        if "Calificación/20,00_final" in df.columns:
+            columnas.append("Calificación/20,00_final")
+        elif not tiene_examen_entrada and "Calificación/20,00" in df.columns:
+            columnas.append("Calificación/20,00")
+
+    return columnas
+
+
 def convertir_columnas_calificacion(df: pd.DataFrame) -> pd.DataFrame:
-    for col in ["Calificación/20,00", "Calificación/20,00_final", "total_curso"]:
+    columnas = [
+        "Calificación/20,00",
+        *_columnas_calificacion_intermedia(df),
+        "Calificación/20,00_final",
+        "total_curso",
+    ]
+    for col in columnas:
         if col in df.columns:
             df[col] = convertir_a_numerico(df[col])
+    return df
+
+
+def actualizar_total_curso_desde_notas(
+    df: pd.DataFrame,
+    tiene_examen_entrada: bool,
+    tiene_examen_final: bool,
+) -> pd.DataFrame:
+    columnas_notas = _columnas_calificacion_para_total(
+        df,
+        tiene_examen_entrada,
+        tiene_examen_final,
+    )
+    if not columnas_notas:
+        return df
+
+    df["total_curso"] = df[columnas_notas].sum(axis=1) / len(columnas_notas)
     return df
 
 
@@ -93,6 +147,7 @@ def ordenar_bloque_calificaciones(df: pd.DataFrame) -> pd.DataFrame:
         col_entrada,
         "Examen final",
         "Calificación/20,00",
+        *_columnas_calificacion_intermedia(df),
         "Calificación/20,00_final",
         "total_curso",
     ]
@@ -127,7 +182,12 @@ def ordenar_columnas_intermedias(df: pd.DataFrame) -> pd.DataFrame:
 def ordenar_por_calificaciones(df: pd.DataFrame) -> pd.DataFrame:
     columnas_orden = [
         c
-        for c in ["total_curso", "Calificación/20,00", "Calificación/20,00_final"]
+        for c in [
+            "total_curso",
+            "Calificación/20,00",
+            *_columnas_calificacion_intermedia(df),
+            "Calificación/20,00_final",
+        ]
         if c in df.columns
     ]
     if columnas_orden:

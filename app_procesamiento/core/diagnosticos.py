@@ -228,6 +228,7 @@ def imprimir_diagnostico_duplicados_dni(
     ruta_calificacion: str | Path,
     ruta_examen_entrada: str | Path | None = None,
     ruta_examen_final: str | Path | None = None,
+    rutas_evaluaciones_intermedias: list[str | Path] | None = None,
 ) -> None:
     print("Diagnostico previo de duplicados en DNI")
     print("(antes de depurar/eliminar duplicados; agrupado por DNI valido para merge)")
@@ -235,6 +236,12 @@ def imprimir_diagnostico_duplicados_dni(
     dni_calificados = _leer_dni_calificados(ruta_calificacion)
     dni_actividades = _leer_dni_actividades(ruta_actividades)
     dni_examen_entrada = _leer_dni_examen(ruta_examen_entrada) if ruta_examen_entrada else None
+    rutas_evaluaciones_intermedias = rutas_evaluaciones_intermedias or []
+    dni_evaluaciones_intermedias = [
+        (numero, _leer_dni_examen(ruta))
+        for numero, ruta in enumerate(rutas_evaluaciones_intermedias, start=1)
+        if ruta
+    ]
     dni_examen_final = _leer_dni_examen(ruta_examen_final) if ruta_examen_final else None
 
     diagnosticos = [
@@ -244,6 +251,13 @@ def imprimir_diagnostico_duplicados_dni(
             "examen entrada",
             _contar_duplicados(dni_examen_entrada) if dni_examen_entrada is not None else None,
         ),
+        *[
+            (
+                f"evaluacion intermedia {numero}",
+                _contar_duplicados(dni_intermedia),
+            )
+            for numero, dni_intermedia in dni_evaluaciones_intermedias
+        ],
         (
             "examen final",
             _contar_duplicados(dni_examen_final) if dni_examen_final is not None else None,
@@ -258,6 +272,11 @@ def imprimir_diagnostico_duplicados_dni(
     _imprimir_grupos_duplicados("actividades", dni_actividades)
     if dni_examen_entrada is not None:
         _imprimir_grupos_duplicados("examen entrada", dni_examen_entrada)
+    for numero, dni_intermedia in dni_evaluaciones_intermedias:
+        _imprimir_grupos_duplicados(
+            f"evaluacion intermedia {numero}",
+            dni_intermedia,
+        )
     if dni_examen_final is not None:
         _imprimir_grupos_duplicados("examen final", dni_examen_final)
 
