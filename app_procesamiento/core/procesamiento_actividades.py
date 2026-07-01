@@ -6,6 +6,7 @@ from app_procesamiento.core.certificados import (
     agregar_certificado_por_total,
     calcular_condicion_y_constancia,
 )
+from app_procesamiento.config import FECHA_EMISION_CERTIFICADO
 from app_procesamiento.core.columnas import (
     actualizar_total_curso_desde_notas,
     convertir_columnas_calificacion,
@@ -71,6 +72,7 @@ def procesar_microlearning_dataset(
     examen_entrada: pd.DataFrame | None = None,
     examen_final: pd.DataFrame | None = None,
     evaluaciones_intermedias: list[pd.DataFrame] | None = None,
+    fecha_emision: str = FECHA_EMISION_CERTIFICADO,
 ) -> pd.DataFrame:
     df = unir_fuentes(calificados, actividades)
 
@@ -104,7 +106,11 @@ def procesar_microlearning_dataset(
     df = ordenar_columnas_intermedias(df)
     df = mover_columna_despues_de_otra(df, "clasificacion_empresa", "perfil")
     df = ordenar_por_calificaciones(df)
-    df = agregar_certificado_por_total(df, crear_si_no_hay_total=False)
+    df = agregar_certificado_por_total(
+        df,
+        crear_si_no_hay_total=False,
+        fecha_emision=fecha_emision,
+    )
     return eliminar_columnas_exportacion(df)
 
 
@@ -114,6 +120,7 @@ def procesar_mooc_dataset(
     examen_entrada: pd.DataFrame | None,
     examen_final: pd.DataFrame,
     evaluaciones_intermedias: list[pd.DataFrame] | None = None,
+    fecha_emision: str = FECHA_EMISION_CERTIFICADO,
 ) -> pd.DataFrame:
     df = unir_fuentes(calificados, actividades)
 
@@ -146,19 +153,24 @@ def procesar_mooc_dataset(
     df = mover_columna_despues_de_otra(df, "total_curso", "Calificaci\u00f3n/20,00_final")
     df = ordenar_bloque_calificaciones(df)
     df = ordenar_por_calificaciones(df)
-    df = agregar_certificado_por_total(df, crear_si_no_hay_total=True)
+    df = agregar_certificado_por_total(
+        df,
+        crear_si_no_hay_total=True,
+        fecha_emision=fecha_emision,
+    )
     return eliminar_columnas_exportacion(df)
 
 
 def procesar_videoconferencia_dataset(
     actividades: pd.DataFrame,
     calificados: pd.DataFrame,
+    fecha_emision: str = FECHA_EMISION_CERTIFICADO,
 ) -> pd.DataFrame:
     df = unir_fuentes(calificados, actividades)
     df = eliminar_columnas_actividad(df, "videoconferencia")
     df = eliminar_columnas_basura(df)
     df = limpiar_campos_generales(df)
-    df = calcular_condicion_y_constancia(df)
+    df = calcular_condicion_y_constancia(df, fecha_emision=fecha_emision)
     df = mover_columna_despues_de_otra(df, "clasificacion_empresa", "perfil")
 
     if {"condicion", "certificado"}.issubset(df.columns):

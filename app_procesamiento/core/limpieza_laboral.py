@@ -455,6 +455,7 @@ def normalizar_columnas_por_situacion_laboral(df: pd.DataFrame) -> pd.DataFrame:
         "otros_ambito",
     ]:
         asignar_texto(df, mask_no_lab, col, nc)
+    asignar_texto(df, mask_no_lab, "nombre_entidad", "NO CORRESPONDE")
     asignar_texto(df, mask_no_lab, "tipo_entidad", "No labora actualmente") # Podría reducirse y hacer menos procesamiento con casos específicos
 
     df = normalizar_perfil_proveedor_por_tipo_entidad_rnp(df)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import redirect_stdout
+from datetime import datetime
 from io import BytesIO
 from io import StringIO
 from pathlib import Path
@@ -112,6 +113,10 @@ def leer_examen_final_upload(uploaded_file) -> pd.DataFrame:
 def leer_evaluacion_intermedia_upload(uploaded_file, numero: int) -> pd.DataFrame:
     uploaded_file.seek(0)
     return leer_evaluacion_intermedia(uploaded_file, numero)
+
+
+def fecha_emision_por_defecto():
+    return datetime.strptime(config.FECHA_EMISION_CERTIFICADO, "%d-%m-%Y").date()
 
 
 def streamlit_secret_section(name: str) -> dict | None:
@@ -324,6 +329,7 @@ def procesar_microlearning(
     examen_entrada_file,
     examen_final_file,
     evaluaciones_intermedias_files=None,
+    fecha_emision: str = config.FECHA_EMISION_CERTIFICADO,
 ):
     evaluaciones_intermedias_files = evaluaciones_intermedias_files or []
     imprimir_diagnostico_duplicados_dni(
@@ -350,6 +356,7 @@ def procesar_microlearning(
         examen_entrada,
         examen_final,
         evaluaciones_intermedias,
+        fecha_emision,
     )
 
 
@@ -359,6 +366,7 @@ def procesar_mooc(
     examen_entrada_file,
     examen_final_file,
     evaluaciones_intermedias_files=None,
+    fecha_emision: str = config.FECHA_EMISION_CERTIFICADO,
 ):
     evaluaciones_intermedias_files = evaluaciones_intermedias_files or []
     imprimir_diagnostico_duplicados_dni(
@@ -382,10 +390,15 @@ def procesar_mooc(
         examen_entrada,
         leer_examen_final_upload(examen_final_file),
         evaluaciones_intermedias,
+        fecha_emision,
     )
 
 
-def procesar_videoconferencia(actividades_file, dataset_file):
+def procesar_videoconferencia(
+    actividades_file,
+    dataset_file,
+    fecha_emision: str = config.FECHA_EMISION_CERTIFICADO,
+):
     imprimir_diagnostico_duplicados_dni(
         actividades_file,
         dataset_file,
@@ -394,6 +407,7 @@ def procesar_videoconferencia(actividades_file, dataset_file):
     return procesar_videoconferencia_dataset(
         leer_actividades_upload(actividades_file),
         leer_calificados_upload(dataset_file),
+        fecha_emision,
     )
 
 
@@ -901,6 +915,14 @@ with tab_procesar:
         index=0,
     )
 
+    fecha_emision_seleccionada = st.date_input(
+        "Fecha de emisión",
+        value=fecha_emision_por_defecto(),
+        format="DD/MM/YYYY",
+        key=f"fecha_emision_{tipo_actividad}",
+    )
+    fecha_emision_certificado = fecha_emision_seleccionada.strftime("%d-%m-%Y")
+
     col1, col2 = st.columns(2)
     with col1:
         actividades = st.file_uploader(
@@ -984,7 +1006,11 @@ with tab_procesar:
             with st.spinner("Procesando..."):
                 with redirect_stdout(mensajes_buffer):
                     if tipo_actividad == "Videoconferencia":
-                        df_resultado = procesar_videoconferencia(actividades, dataset_final)
+                        df_resultado = procesar_videoconferencia(
+                            actividades,
+                            dataset_final,
+                            fecha_emision_certificado,
+                        )
                         nombre_archivo = "videoconferencia_procesado.xlsx"
                     elif tipo_actividad == "Microlearning":
                         df_resultado = procesar_microlearning(
@@ -993,6 +1019,7 @@ with tab_procesar:
                             examen_entrada,
                             examen_final,
                             evaluaciones_intermedias,
+                            fecha_emision_certificado,
                         )
                         nombre_archivo = "microlearning_procesado.xlsx"
                     else:
@@ -1002,6 +1029,7 @@ with tab_procesar:
                             examen_entrada,
                             examen_final,
                             evaluaciones_intermedias,
+                            fecha_emision_certificado,
                         )
                         nombre_archivo = "mooc_procesado.xlsx"
 
