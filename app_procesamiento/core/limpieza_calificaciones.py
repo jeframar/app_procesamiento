@@ -13,6 +13,7 @@ from app_procesamiento.core.entidades import (
 from app_procesamiento.core.limpieza_laboral import (
     aplicar_correcciones_post_match,
     aplicar_reglas_limpieza_inicial,
+    normalizar_nombre_entidad_no_labora,
 )
 
 
@@ -49,5 +50,7 @@ def limpiar_dataset_calificaciones(
         if service is None or spreadsheet_id is None:
             raise ValueError("Se requiere service y spreadsheet_id para registrar pendientes.")
         registrar_pendientes_en_sheets(service, spreadsheet_id, df)
+
+    df = normalizar_nombre_entidad_no_labora(df)
 
     return df, nombres_normalizados, matches_ruc, matches_nombre

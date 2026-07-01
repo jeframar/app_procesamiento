@@ -14,7 +14,10 @@ from app_procesamiento.core.errores_match_no import (
     analizar_errores_match_no,
 )
 from app_procesamiento.core.columnas import renumerar_id_por_apellidos_nombres
-from app_procesamiento.core.limpieza_laboral import normalizar_columnas_por_situacion_laboral
+from app_procesamiento.core.limpieza_laboral import (
+    normalizar_columnas_por_situacion_laboral,
+    normalizar_nombre_entidad_no_labora,
+)
 
 
 def _es_vacio(serie: pd.Series) -> pd.Series:
@@ -98,6 +101,7 @@ def finalizar_dataset_calificaciones(
     df = normalizar_columnas_por_situacion_laboral(df)
     df = normalizar_rubro_organizacion_calificaciones(df)
     df = aplicar_reglas_finales(df)
+    df = normalizar_nombre_entidad_no_labora(df)
     analisis_errores = analizar_errores_match_no(df)
     df = renumerar_id_por_apellidos_nombres(df)
 
